@@ -1,93 +1,101 @@
 " Description: Omni completion tokenizer
-" Author:  Vissale NEANG
-" Last Change: 26 sept. 2007
-" TODO: Generic behaviour for Tokenize()
+" Author: Bassam JABBOUR
+" Note: Based on the original OmniCpp code
+
+"{{{1 Parameters =======================================================
 
 " From the C++ BNF
-let s:cppKeyword = ['asm', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const', 'const_cast', 'continue', 'default', 'delete', 'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new', 'operator', 'private', 'protected', 'public', 'register', 'reinterpret_cast', 'return', 'short', 'signed', 'sizeof', 'static', 'static_cast', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'and', 'and_eq', 'bitand', 'bitor', 'compl', 'not', 'not_eq', 'or', 'or_eq', 'xor', 'xor_eq']
-
-let s:reCppKeyword = '\C\<'.join(s:cppKeyword, '\>\|\<').'\>'
+let s:keywords = ['asm', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const', 'const_cast', 'continue', 'default', 'delete', 'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new', 'operator', 'private', 'protected', 'public', 'register', 'reinterpret_cast', 'return', 'short', 'signed', 'sizeof', 'static', 'static_cast', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'and', 'and_eq', 'bitand', 'bitor', 'compl', 'not', 'not_eq', 'or', 'or_eq', 'xor', 'xor_eq']
 
 " The order of items in this list is very important because we use this list to build a regular
 " expression (see below) for tokenization
-let s:cppOperatorPunctuator = ['->*', '->', '--', '-=', '-', '!=', '!', '##', '#', '%:%:', '%=', '%>', '%:', '%', '&&', '&=', '&', '(', ')', '*=', '*', ',', '...', '.*', '.', '/=', '/', '::', ':>', ':', ';', '?', '[', ']', '^=', '^', '{', '||', '|=', '|', '}', '~', '++', '+=', '+', '<<=', '<%', '<:', '<<', '<=', '<', '==', '=', '>>=', '>>', '>=', '>']
+let s:operators = ['->*', '->', '--', '-=', '-', '!=', '!', '##', '#', '%:%:', '%=', '%>', '%:', '%', '&&', '&=', '&', '(', ')', '*=', '*', ',', '...', '.*', '.', '/=', '/', '::', ':>', ':', ';', '?', '[', ']', '^=', '^', '{', '||', '|=', '|', '}', '~', '++', '+=', '+', '<<=', '<%', '<:', '<<', '<=', '<', '==', '=', '>>=', '>>', '>=', '>']
 
-" We build the regexp for the tokenizer
-let s:reCComment = '\/\*\|\*\/'
-let s:reCppComment = '\/\/'
-let s:reComment = s:reCComment.'\|'.s:reCppComment
-let s:reCppOperatorOrPunctuator = escape(join(s:cppOperatorPunctuator, '\|'), '*./^~[]')
+" ORing of the previous lists items, with proper markers
+let s:reOperator = '\V\^'.join(s:operators, '\|\^')
+let s:reKeyword = '\V\C\^\<'.join(s:keywords, '\>\|\^\<').'\>'
 
+" Token types and the associated regexps, order matters:
+"   - digit : a C++ literal number
+"   - string : a C++ literal string
+"   - keyword : a valid C++ keyword (see list above)
+"   - identifier : a variable/function/... name
+"   - operator : an operator or punctutation sign
+"   - unknown : will match any symbol not matched previously and up to
+"   the end of the string
+"
+" FIXME digits don't match all C++ numbers format
+" FIXME identifiers don't include all accepted C++ characters
+let s:TypeRegexMap = {'digit' : '\^\d\+', 'string' : '\^""', 'keyword' : s:reKeyword, 'identifier' : '\^\w\+', 'operator' : s:reOperator, 'unknown' : '\.\+'}
 
-" Tokenize a c++ code
-" a token is dictionary where keys are:
-"   -   kind = cppKeyword|cppWord|cppOperatorPunctuator|unknown|cComment|cppComment|cppDigit
-"   -   value = 'something'
-"   Note: a cppWord is any word that is not a cpp keyword
-function! omni#cpp#tokenizer#Tokenize(szCode)
+" The regex used to match any token, identified or not
+let s:reToken = '\V'.join(values(s:TypeRegexMap), '\|')
+
+"{{{1 Core =============================================================
+
+" Tokenize a piece of code (a tokenText is a dictionary with keys {type,
+" text}). Type 'unknown' is assigned to items that fail at
+" classification.
+"
+" @param code a SANITIZED code string (see omnicpp#utils#SanitizeCode)
+" @return List of tokens
+"
+function! omnicpp#tokenizer#Tokenize(code)
     let result = []
 
-    " The regexp to find a token, a token is a keyword, word or
-    " c++ operator or punctuator. To work properly we have to put
-    " spaces and tabs to our regexp.
-    let reTokenSearch = '\(\w\+\)\|\s\+\|'.s:reComment.'\|'.s:reCppOperatorOrPunctuator
-    " eg: 'using namespace std;'
-    "      ^    ^
-    "  start=0 end=5
-    let startPos = 0
-    let endPos = matchend(a:szCode, reTokenSearch)
-    let len = endPos-startPos
-    while endPos!=-1
-        " eg: 'using namespace std;'
-        "      ^    ^
-        "  start=0 end=5
-        "  token = 'using'
-        " We also remove space and tabs
-        let token = substitute(strpart(a:szCode, startPos, len), '\s', '', 'g')
+    " Index pointing to the beginning of next match
+    let matchStart = 0
 
-        " eg: 'using namespace std;'
-        "           ^         ^
-        "       start=5     end=15
-        let startPos = endPos
-        let endPos = matchend(a:szCode, reTokenSearch, startPos)
-        let len = endPos-startPos
-
-        " It the token is empty we continue
-        if token==''
-            continue
+    while 1
+        " Skip any white spaces
+        let spaceEnd = matchend(a:code, '\v^\s+', matchStart)
+        if spaceEnd != -1
+            let matchStart = spaceEnd
         endif
 
-        " Building the token
-        let resultToken = {'kind' : 'unknown', 'value' : token}
+        " Match against the token regex
+        let matchEnd = matchend(a:code, s:reToken, matchStart)
+        " No more matches
+        if matchEnd == -1 | break | endif
+        let tokenText = strpart(a:code, matchStart, matchEnd-matchStart)
 
-        " Classify the token
-        if token =~ '^\d\+'
-            " It's a digit
-            let resultToken.kind = 'cppDigit'
-        elseif token=~'^\w\+$'
-            " It's a word
-            let resultToken.kind = 'cppWord'
-
-            " But maybe it's a c++ keyword
-            if match(token, s:reCppKeyword)>=0
-                let resultToken.kind = 'cppKeyword'
+        let token = {}
+        " Select the first item type whose regexp matches
+        for type in keys(s:TypeRegexMap)
+            if tokenText =~ '\V'.s:TypeRegexMap[type].'\$'
+                let token['type'] = type
+                let token['text'] = tokenText
+                break
             endif
-        else
-            if match(token, s:reComment)>=0
-                if index(['/*','*/'],token)>=0
-                    let resultToken.kind = 'cComment'
-                else
-                    let resultToken.kind = 'cppComment'
-                endif
-            else
-                " It's an operator
-                let resultToken.kind = 'cppOperatorPunctuator'
-            endif
-        endif
+        endfor
 
-        " We have our token, let's add it to the result list
-        call extend(result, [resultToken])
+        call add(result, token)
+
+        " Move the first element pointer
+        let matchStart = matchEnd
     endwhile
 
     return result
 endfunc
+
+"{{{1 Interface wrappers ===============================================
+
+" Tokenize the current instruction until the cursor position.
+"
+" @return list of tokens
+"
+function! omnicpp#tokenizer#TokenizeCurrentInstruction()
+    let origPos = getpos('.')
+    " Rewind until an instruction delimiter is found or beginning of
+    " file is reached, jumping over comments or strings
+    while 1
+        let startPos = searchpos('[;{}]\|\%^', 'bW')
+        if !omnicpp#utils#IsCursorInCommentOrString() || startPos == [1,1]
+            break
+        endif
+    endwhile
+    call setpos('.', origPos)
+    return omnicpp#tokenizer#Tokenize(omnicpp#utils#GetCode(startPos, origPos[1:2], 1))
+endfunc
+
+" vim: fdm=marker

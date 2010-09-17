@@ -41,3 +41,8 @@ function! omnicpp#utils#GetCode(startPos, endPos, ...)
 
     return single
 endfunc
+
+" Check if the cursor is in a comment or string
+function! omnicpp#utils#IsCursorInCommentOrString()
+    return match(synIDattr(synID(line("."), col(".")-1, 1), "name"), '\C\<cComment\|\<cCppString\|\<cIncluded')>=0
+endfunc
