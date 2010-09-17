@@ -21,27 +21,29 @@ let s:reKeyword = '\V\C\^\<'.join(s:keywords, '\>\|\^\<').'\>'
 "   - keyword : a valid C++ keyword (see list above)
 "   - identifier : a variable/function/... name
 "   - operator : an operator or punctutation sign
-"   - unknown : will match any symbol not matched previously and up to
-"   the end of the string
+"   - unknown : none of the above rules matched at the current position
 "
 " Types are stored as a list of objects, each having a 'type' and
 " 'regex' entry (plain dictionaries don't preserve the order of the
 " elements).
 "
-" FIXME identifiers don't include all accepted C++ characters
+" Note: all regexes must be declared with \V!
+"
 function! s:addTypeRegex (name, regex)
     call add(s:TypeRegex, { 'name' : a:name, 'regex' : a:regex})
 endfunc
 let s:TypeRegex = []
 " The digits regex first matches against hex numbers, then floating
 " numbers, and finally normal integers
-call s:addTypeRegex('digit','\^-\=\(0x\x\+\[UL]\=\|\(\d\+.\d\*\|.\d\+\)\(e-\=\d\+\)\=\[fFlL]\=\|\d\+\[UL]\=\)')
+call s:addTypeRegex('digit','\V\^-\=\(0x\x\+\[UL]\=\|\(\d\+.\d\*\|.\d\+\)\(e-\=\d\+\)\=\[fFlL]\=\|\d\+\[UL]\=\)')
 " All strings will be empty in sanitized code
-call s:addTypeRegex('string','\^""')
+call s:addTypeRegex('string','\V\^""')
 call s:addTypeRegex('keyword', s:reKeyword)
-call s:addTypeRegex('identifier', '\^\w\+')
+call s:addTypeRegex('identifier', '\V\^\w\(\w\|\d\|$\)\*')
 call s:addTypeRegex('operator', s:reOperator)
-call s:addTypeRegex('unknown', '\.\+')
+" When an unknown symbol is encountered, match up to the end of the
+" string into a single 'unknown' item
+call s:addTypeRegex('unknown', '\V\.\+')
 
 
 " The regex used to match any token
@@ -83,7 +85,7 @@ function! omnicpp#tokenizer#Tokenize(code)
         let token = {}
         " Select the first item type whose regexp matches
         for type in s:TypeRegex
-            if tokenText =~ '\V'.type.regex.'\$'
+            if tokenText =~ type.regex.'\$'
                 let token['type'] = type.name
                 let token['text'] = tokenText
                 break
