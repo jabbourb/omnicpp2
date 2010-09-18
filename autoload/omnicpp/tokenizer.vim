@@ -1,50 +1,50 @@
-" Description: Omni completion tokenizer
 " Author: Bassam JABBOUR
-" Note: Based on the original OmniCpp code
-
-"{{{1 Parameters =======================================================
-
-" From the C++ BNF
-let s:keywords = ['asm', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const', 'const_cast', 'continue', 'default', 'delete', 'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new', 'operator', 'private', 'protected', 'public', 'register', 'reinterpret_cast', 'return', 'short', 'signed', 'sizeof', 'static', 'static_cast', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'and', 'and_eq', 'bitand', 'bitor', 'compl', 'not', 'not_eq', 'or', 'or_eq', 'xor', 'xor_eq']
-
-" The order of items in this list is very important because we use this list to build a regular
-" expression (see below) for tokenization
-let s:operators = ['->*', '->', '--', '-=', '-', '!=', '!', '##', '#', '%:%:', '%=', '%>', '%:', '%', '&&', '&=', '&', '(', ')', '*=', '*', ',', '...', '.*', '.', '/=', '/', '::', ':>', ':', ';', '?', '[', ']', '^=', '^', '{', '||', '|=', '|', '}', '~', '++', '+=', '+', '<<=', '<%', '<:', '<<', '<=', '<', '==', '=', '>>=', '>>', '>=', '>']
-
-" ORing of the previous lists items, with proper markers
-let s:reOperator = '\V\^'.join(s:operators, '\|\^')
-let s:reKeyword = '\V\C\^\<'.join(s:keywords, '\>\|\^\<').'\>'
-
-" Token types and the associated regexps, order matters:
+" Description: C++ code tokenizer
+"
+" The tokenizer processes a code string and outputs the lexical elements
+" found. Token types are as follow:
 "   - digit : a C++ literal number
 "   - string : a C++ literal string
-"   - keyword : a valid C++ keyword (see list above)
+"   - keyword : a valid C++ keyword (see syntax.vim)
 "   - identifier : a variable/function/... name
-"   - operator : an operator or punctutation sign
+"   - operator : an operator or punctutation sign (see syntax.vim)
 "   - unknown : none of the above rules matched at the current position
-"
-" Types are stored as an ordered list of objects, each having a 'type'
-" and 'regex' entry.
-"
+
+
+"{{{1 Types definition
+
+" Regexes
 " Note: all regexes must be preceded by either (\v, \m, \M or \V) for
 " the aggregated regex to work
-"
+
+" The digits regex first matches against hex numbers, then floating
+" numbers, and finally plain integers
+let s:reDigit = '\v^-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
+" Strings will have been emptied
+let s:reString = '\m^""'
+" Valide C++ identifiers (allows the $ character)
+let s:reIdentifier = '\v^\w(\w|\d|\$)*'
+" ORing keywords
+let s:reKeyword = '\V\C\^\<'.join(g:CppKeywords, '\>\|\^\<').'\>'
+" ORing operators
+let s:reOperator = '\V\^'.join(g:CppOperators, '\|\^')
+" The unknown type matches anything up to the end of the input
+let s:reUnknown = '\v.+'
+
+" Token types and the associated regexes, order matters.
+" Types are stored as an ordered list of objects, each having 'name'
+" and 'regex' entries.
+let s:TypeRegex = []
+call s:addTypeRegex('digit',        s:reDigit)
+call s:addTypeRegex('string',       s:reString)
+call s:addTypeRegex('keyword',      s:reKeyword)
+call s:addTypeRegex('identifier',   s:reIdentifier)
+call s:addTypeRegex('operator',     s:reOperator)
+call s:addTypeRegex('unknown',      s:reUnknown)
+
 function! s:addTypeRegex (name, regex)
     call add(s:TypeRegex, { 'name' : a:name, 'regex' : a:regex})
 endfunc
-let s:TypeRegex = []
-" The digits regex first matches against hex numbers, then floating
-" numbers, and finally plain integers
-call s:addTypeRegex('digit','\v^-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)')
-" All strings will be empty in sanitized code
-call s:addTypeRegex('string','\m^""')
-call s:addTypeRegex('keyword', s:reKeyword)
-call s:addTypeRegex('identifier', '\v^\w(\w|\d|\$)*')
-call s:addTypeRegex('operator', s:reOperator)
-" When an unknown symbol is encountered, match up to the end of the
-" string into a single 'unknown' item
-call s:addTypeRegex('unknown', '\v.+')
-
 
 " The regex used to match any token
 let s:reTokenList = []
@@ -54,13 +54,13 @@ endfor
 let s:reToken = join(s:reTokenList,'\v|')
 
 
-"{{{1 Core =============================================================
+"{{{1 Methods
 
-" Tokenize a piece of code (a tokenText is a dictionary with keys {type,
+" Tokenize a piece of code (a token is a dictionary with keys {type,
 " text}). Type 'unknown' is assigned to items that fail at
 " classification.
 "
-" @param code a SANITIZED code string (see omnicpp#utils#SanitizeCode)
+" @param code a SANITIZED code string (see omnicpp#utils#Sanitize)
 " @return List of tokens
 "
 function! omnicpp#tokenizer#Tokenize(code)
@@ -101,7 +101,6 @@ function! omnicpp#tokenizer#Tokenize(code)
     return result
 endfunc
 
-"{{{1 Interface wrappers ===============================================
 
 " Tokenize the current instruction until the cursor position.
 "

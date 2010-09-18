@@ -3,6 +3,7 @@
 
 
 " Get the code between two buffer positions after sanitizing it.
+" We assume that startPos is NOT inside a comment or string.
 "
 " @param startPos the starting buffer position [line, col] for the
 " extracted code
