@@ -1,5 +1,8 @@
-" Get the code between two buffer positions, removing comments and
-" emptying strings.
+" Description: Utility functions for OmniCpp2
+" Author: Bassam Jabbour
+
+
+" Get the code between two buffer positions after sanitizing it.
 "
 " @param startPos the starting buffer position [line, col] for the
 " extracted code
@@ -29,6 +32,16 @@ function! omnicpp#utils#GetCode(startPos, endPos, ...)
         let lines[-1] = strpart(lines[-1], 0, endByte)
     endif
 
+    return omnicpp#utils#Sanitize(lines)
+endfunc
+
+
+" Sanitize lines, removing comments and emptying strings
+"
+" @param lines the code lines to process (list of strings)
+" @return result as a single string
+"
+function! omnicpp#utils#Sanitize(lines)
     " Remove line comments
     call map(lines, "substitute(v:val, '//.*', '', 'g')")
 
@@ -41,6 +54,7 @@ function! omnicpp#utils#GetCode(startPos, endPos, ...)
 
     return single
 endfunc
+
 
 " Check if the cursor is in a comment or string
 function! omnicpp#utils#IsCursorInCommentOrString()
