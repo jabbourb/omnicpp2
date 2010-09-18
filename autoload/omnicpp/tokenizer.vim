@@ -25,9 +25,9 @@ let s:reString = '\m^""'
 " Valide C++ identifiers (allows the $ character)
 let s:reIdentifier = '\v^\w(\w|\d|\$)*'
 " ORing keywords
-let s:reKeyword = '\V\C\^\<'.join(g:CppKeywords, '\>\|\^\<').'\>'
+let s:reKeyword = '\V\C\^\<'.join(g:omnicpp#syntax#Keywords, '\>\|\^\<').'\>'
 " ORing operators
-let s:reOperator = '\V\^'.join(g:CppOperators, '\|\^')
+let s:reOperator = '\V\^'.join(g:omnicpp#syntax#Operators, '\|\^')
 " The unknown type matches anything up to the end of the input
 let s:reUnknown = '\v.+'
 

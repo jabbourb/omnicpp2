@@ -44,9 +44,9 @@ endfunc
 "
 function! omnicpp#utils#Sanitize(lines)
     " Remove line comments
-    call map(lines, "substitute(v:val, '//.*', '', 'g')")
+    call map(a:lines, "substitute(v:val, '//.*', '', 'g')")
 
-    let single = join(lines, ' ')
+    let single = join(a:lines, ' ')
     " Empty strings
     let single = substitute(single, '"[^"]*"', '""', 'g')
     " C style comments; we don't have to worry about being in a string
@@ -58,6 +58,9 @@ endfunc
 
 
 " Check if the cursor is in a comment or string
-function! omnicpp#utils#IsCursorInCommentOrString()
-    return match(synIDattr(synID(line("."), col(".")-1, 1), "name"), '\C\<cComment\|\<cCppString\|\<cIncluded')>=0
+" If an non-null argument is given, move the cursor one position
+" backward
+function! omnicpp#utils#IsCursorInCommentOrString(...)
+    let col = a:0 && a:1 ? col('.')-1 : col('.')
+    return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cIncluded')>=0
 endfunc

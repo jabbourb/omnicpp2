@@ -3,7 +3,7 @@ function! omnicpp#complete#Main(findstart, base)
     if a:findstart
         " We need to set s:mayComplete to 1 if completion is possible
         " for the second call
-        if !omnicpp#utils#IsCursorInCommentOrString()
+        if !omnicpp#utils#IsCursorInCommentOrString(1)
             let start = s:FindStartOfCompletion()
             if start != -1
                 let s:mayComplete = 1
