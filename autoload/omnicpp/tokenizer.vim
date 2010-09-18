@@ -23,27 +23,27 @@ let s:reKeyword = '\V\C\^\<'.join(s:keywords, '\>\|\^\<').'\>'
 "   - operator : an operator or punctutation sign
 "   - unknown : none of the above rules matched at the current position
 "
-" Types are stored as a list of objects, each having a 'type' and
-" 'regex' entry (plain dictionaries don't preserve the order of the
-" elements).
+" Types are stored as an ordered list of objects, each having a 'type'
+" and 'regex' entry.
 "
-" Note: all regexes must be declared with \V!
+" Note: all regexes must be preceded by either (\v, \m, \M or \V) for
+" the aggregated regex to work
 "
 function! s:addTypeRegex (name, regex)
     call add(s:TypeRegex, { 'name' : a:name, 'regex' : a:regex})
 endfunc
 let s:TypeRegex = []
 " The digits regex first matches against hex numbers, then floating
-" numbers, and finally normal integers
-call s:addTypeRegex('digit','\V\^-\=\(0x\x\+\[UL]\=\|\(\d\+.\d\*\|.\d\+\)\(e-\=\d\+\)\=\[fFlL]\=\|\d\+\[UL]\=\)')
+" numbers, and finally plain integers
+call s:addTypeRegex('digit','\v^-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)')
 " All strings will be empty in sanitized code
-call s:addTypeRegex('string','\V\^""')
+call s:addTypeRegex('string','\m^""')
 call s:addTypeRegex('keyword', s:reKeyword)
-call s:addTypeRegex('identifier', '\V\^\w\(\w\|\d\|$\)\*')
+call s:addTypeRegex('identifier', '\v^\w(\w|\d|\$)*')
 call s:addTypeRegex('operator', s:reOperator)
 " When an unknown symbol is encountered, match up to the end of the
 " string into a single 'unknown' item
-call s:addTypeRegex('unknown', '\V\.\+')
+call s:addTypeRegex('unknown', '\v.+')
 
 
 " The regex used to match any token
@@ -51,7 +51,7 @@ let s:reTokenList = []
 for type in s:TypeRegex
     call add(s:reTokenList, type.regex)
 endfor
-let s:reToken = '\V'.join(s:reTokenList,'\|')
+let s:reToken = join(s:reTokenList,'\v|')
 
 
 "{{{1 Core =============================================================
@@ -85,7 +85,7 @@ function! omnicpp#tokenizer#Tokenize(code)
         let token = {}
         " Select the first item type whose regexp matches
         for type in s:TypeRegex
-            if tokenText =~ type.regex.'\$'
+            if tokenText =~ type.regex.'\m$'
                 let token['type'] = type.name
                 let token['text'] = tokenText
                 break
