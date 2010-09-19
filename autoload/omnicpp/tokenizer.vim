@@ -19,39 +19,39 @@
 
 " The digits regex first matches against hex numbers, then floating
 " numbers, and finally plain integers
-let s:reDigit = '\v^-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
+let g:omnicpp#tokenizer#reDigit = '\v-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
 " Strings will have been emptied
-let s:reString = '\m^""'
+let s:reString = '\m""'
 " Valide C++ identifiers (allows the $ character)
-let s:reIdentifier = '\v^\w(\w|\d|\$)*'
+let g:omnicpp#tokenizer#reIdentifier = '\v<\h(\w|\d|\$)*>'
 " ORing keywords
-let s:reKeyword = '\V\C\^\<'.join(g:omnicpp#syntax#Keywords, '\>\|\^\<').'\>'
+let s:reKeyword = '\V\C\<'.join(g:omnicpp#syntax#Keywords, '\>\|\<').'\>'
 " ORing operators
-let s:reOperator = '\V\^'.join(g:omnicpp#syntax#Operators, '\|\^')
+let s:reOperator = '\V'.join(g:omnicpp#syntax#Operators, '\|')
 " The unknown type matches anything up to the end of the input
 let s:reUnknown = '\v.+'
+
+function! s:addTypeRegex (name, regex)
+    call add(s:TypeRegex, { 'name' : a:name, 'regex' : a:regex})
+endfunc
 
 " Token types and the associated regexes, order matters.
 " Types are stored as an ordered list of objects, each having 'name'
 " and 'regex' entries.
 let s:TypeRegex = []
-call s:addTypeRegex('digit',        s:reDigit)
+call s:addTypeRegex('digit',        g:omnicpp#tokenizer#reDigit)
 call s:addTypeRegex('string',       s:reString)
 call s:addTypeRegex('keyword',      s:reKeyword)
-call s:addTypeRegex('identifier',   s:reIdentifier)
+call s:addTypeRegex('identifier',   g:omnicpp#tokenizer#reIdentifier)
 call s:addTypeRegex('operator',     s:reOperator)
 call s:addTypeRegex('unknown',      s:reUnknown)
-
-function! s:addTypeRegex (name, regex)
-    call add(s:TypeRegex, { 'name' : a:name, 'regex' : a:regex})
-endfunc
 
 " The regex used to match any token
 let s:reTokenList = []
 for type in s:TypeRegex
     call add(s:reTokenList, type.regex)
 endfor
-let s:reToken = join(s:reTokenList,'\v|')
+let s:reToken = '\v^('.join(s:reTokenList,'\v)|(').'\v)'
 
 
 "{{{1 Methods
