@@ -6,9 +6,9 @@
 " The following regexes extract namespaces as XX::YY
 
 " Regex used for matching using-declarations
-let s:declarationRegex = '\C\v<using>\_s+\zs\w+(\_s*::\_s*\w+)+'
+let s:declarationRegex = '\C\v<using>\_s+\zs\w+(\_s*::\_s*\w+)+\ze\_s*;'
 " Regex used for matching using-directives
-let s:directiveRegex = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*'
+let s:directiveRegex = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*\ze\_s*;'
 
 
 "{{{1 Internal functions ===============================================
@@ -47,7 +47,7 @@ function! s:GetLocalUsing(regex)
             " }
             let scopeEnd = searchpairpos('{', '', '}', 'n')
             if scopeEnd[0] >= origPos[1] && scopeEnd[1] >= origPos[2]
-                call s:AppendUsingToList(usingList, a:regex)
+                let usingList += omnicpp#utils#GetInstructionBack(a:regex)
             endif
         endwhile
 
@@ -72,25 +72,11 @@ function! s:GetGlobalUsing(regex)
         " If we are inside a block, get out of it and continue the loop,
         " else add the match
         if !searchpair('{', '', '}', 'br')
-            call s:AppendUsingToList(usingList, a:regex)
+            let usingList += omnicpp#utils#GetInstructionBack(a:regex)
         endif
     endwhile
     call setpos('.', originalPos)
     return usingList
-endfunc
-
-
-" Assuming the cursor is on the last character of a namespace
-" instruction, match up to its beginning and add it to the given list
-"
-" @param usingList the list to extend with the new namespace item
-" @param regex the regex used to match the namespace instruction
-"
-function! s:AppendUsingToList(usingList, regex)
-    let matchEnd = getpos('.')[1:2]
-    let matchStart = searchpos(a:regex, 'bW')
-    " TODO: we still need to check if we are inside a comment
-    call add(a:usingList, substitute(omnicpp#utils#GetCode(matchStart, matchEnd), '\s', '', 'g'))
 endfunc
 
 
