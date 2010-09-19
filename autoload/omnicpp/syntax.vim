@@ -3,8 +3,13 @@
 
 "{{{1 Keywords
 
-let g:omnicpp#syntax#Keywords = ['asm', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const', 'const_cast', 'continue', 'default', 'delete', 'do', 'double', 'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'extern', 'false', 'float', 'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new', 'operator', 'private', 'protected', 'public', 'register', 'reinterpret_cast', 'return', 'short', 'signed', 'sizeof', 'static', 'static_cast', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned', 'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'and', 'and_eq', 'bitand', 'bitor', 'compl', 'not', 'not_eq', 'or', 'or_eq', 'xor', 'xor_eq']
+let g:omnicpp#syntax#KeySpecifier = ['auto', 'register', 'static', 'extern', 'mutable', 'const', 'volatile']
+let g:omnicpp#syntax#KeyFunction = ['inline', 'virtual', 'explicit']
+let g:omnicpp#syntax#KeyType = ['bool', 'char', 'double', 'float', 'int', 'long', 'short', 'void', 'wchar_t', 'signed', 'unsigned']
+let g:omnicpp#syntax#KeyOp = ['and', 'and_eq', 'bitand', 'bitor', 'compl', 'not', 'not_eq', 'or', 'or_eq', 'xor', 'xor_eq']
+let g:omnicpp#syntax#KeyMisc = ['asm', 'break', 'case', 'catch', 'class', 'const_cast', 'continue', 'default', 'delete', 'do', 'dynamic_cast', 'else', 'enum', 'export', 'false', 'for', 'friend', 'goto', 'if', 'namespace', 'new', 'operator', 'private', 'protected', 'public', 'reinterpret_cast', 'return', 'sizeof', 'static_cast', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'using', 'while'] 
 
+let g:omnicpp#syntax#Keywords = g:omnicpp#syntax#KeySpecifier + g:omnicpp#syntax#KeyFunction + g:omnicpp#syntax#KeyType + g:omnicpp#syntax#KeyOp + g:omnicpp#syntax#KeyMisc
 
 "{{{1 Operators
 
