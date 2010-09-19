@@ -69,7 +69,7 @@ function! omnicpp#scope#MatchGlobal(regex, ...)
         " If we are inside a block, get out of it and continue the loop,
         " else add the match
         if !searchpair('{', '', '}', 'br')
-            let matches += omnicpp#utils#GetInstructionBack(a:regex)
+            let matches += s:GetInstructionBack(a:regex)
             if a:0 && a:1 | break | endif
         endif
     endwhile
