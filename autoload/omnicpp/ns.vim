@@ -13,73 +13,6 @@ let s:directiveRegex = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*\ze\
 
 "{{{1 Internal functions ===============================================
 
-" Builds a list of namespaces made available in the current local scope
-" up to the cursor's position; the strings are extracted by matching
-" between the beginning and end of the regex.  If there is no local
-" scope, returns an empty list.
-"
-" @param regex the regex used for matching namespace instructions
-" @return List of namespaces strings
-"
-function! s:GetLocalUsing(regex)
-    let usingList = []
-    " Start of local scope
-    let localStop = searchpair('{', '', '}', 'bnr')
-
-    " If we are in global scope, do nothing
-    if localStop
-        let origPos = getpos('.')
-
-        " Search backwards and put cursor at end of match
-        while search(a:regex, 'bWe', localStop)
-            " Look up the end of the current local scope, and ensure it
-            " encompasses the position where the search started.
-            " ex1:
-            " {
-            "   { using namespace std;}
-            "   ...
-            "   $cursor_position
-            " }
-            " ex2:
-            " using namespace std; {
-            "   ...
-            "   $cursor_position
-            " }
-            let scopeEnd = searchpairpos('{', '', '}', 'n')
-            if scopeEnd[0] >= origPos[1] && scopeEnd[1] >= origPos[2]
-                let usingList += omnicpp#utils#GetInstructionBack(a:regex)
-            endif
-        endwhile
-
-        call setpos('.', origPos)
-    endif
-
-    return usingList
-endfunc
-
-" Builds a list of namespaces made available in the global scope of the
-" current buffer up to the cursor's position; the strings are extracted
-" by matching between the beginning and end of the regex.
-"
-" @param regex the regex used for matching namespace instructions
-" @return List of namespaces strings
-"
-" TODO: parse includes too
-function! s:GetGlobalUsing(regex)
-    let usingList = []
-    let originalPos = getpos('.')
-    while search(a:regex, 'bWe')
-        " If we are inside a block, get out of it and continue the loop,
-        " else add the match
-        if !searchpair('{', '', '}', 'br')
-            let usingList += omnicpp#utils#GetInstructionBack(a:regex)
-        endif
-    endwhile
-    call setpos('.', originalPos)
-    return usingList
-endfunc
-
-
 " Builds up a list of namespaces made available in the global scope of
 " the given file; the strings are extracted by matching between the
 " beginning and end of the regex.
@@ -115,19 +48,19 @@ function! omnicpp#ns#GetGlobalUsingDirectives(file)
 endfunc
 
 function! omnicpp#ns#GetLocalUsingDeclarations()
-    return s:GetLocalUsing(s:declarationRegex)
+    return omnicpp#scope#MatchLocal(s:declarationRegex)
 endfunc
 
 function! omnicpp#ns#GetLocalUsingDirectives()
-    return s:GetLocalUsing(s:directiveRegex)
+    return omnicpp#scope#MatchLocal(s:directiveRegex)
 endfunc
 
 function! omnicpp#ns#GetGlobalUsingDeclarations()
-    return s:GetGlobalUsing(s:declarationRegex)
+    return omnicpp#scope#MatchGlobal(s:declarationRegex)
 endfunc
 
 function! omnicpp#ns#GetGlobalUsingDirectives()
-    return s:GetGlobalUsing(s:directiveRegex)
+    return omnicpp#scope#MatchGlobal(s:directiveRegex)
 endfunc
 
 " vim: fdm=marker

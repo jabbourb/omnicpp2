@@ -10,6 +10,7 @@
 " @param endPos the ending buffer position
 " @param ... by default, the range is inclusive; a non-null optional
 " argument makes it exclusive
+"
 " @return the code string between startPos and endPos
 "
 function! omnicpp#utils#GetCode(startPos, endPos, ...)
@@ -58,30 +59,10 @@ endfunc
 
 
 " Check if the cursor is in a comment or string
-" If an non-null argument is given, move the cursor one position
-" backward
+"
+" @param ... if an non-null argument is given, move the cursor one
+" position backward
 function! omnicpp#utils#IsCursorInCommentOrString(...)
     let col = a:0 && a:1 ? col('.')-1 : col('.')
     return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cIncluded')>=0
-endfunc
-
-
-" Assuming the cursor is on the last character of an instruction, match
-" up to its beginning and return the corresponding string, making sure
-" we are not in a comment or string and removing spaces.
-"
-" This is used when parsing the current buffer backwards.
-"
-" @param regex the regex used to match the namespace instruction
-" @return the extracted string in a single element list, or an empty
-" list
-"
-function! omnicpp#utils#GetInstructionBack(regex)
-    if omnicpp#utils#IsCursorInCommentOrString()
-        return []
-    endif
-
-    let matchEnd = getpos('.')[1:2]
-    let matchStart = searchpos(a:regex, 'bW')
-    return [substitute(omnicpp#utils#GetCode(matchStart, matchEnd), '\s', '', 'g')]
 endfunc
