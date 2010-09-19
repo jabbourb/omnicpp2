@@ -1,3 +1,4 @@
+" Author: Bassam JABBOUR
 " Description: Functions for dealing with namespace resolution
 
 "{{{1 Parameters =======================================================
@@ -12,10 +13,10 @@ let s:directiveRegex = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*'
 
 "{{{1 Internal functions ===============================================
 
-" Builds up a list of namespaces made available in the local scope in
-" the current buffer up to the cursor's position; the strings are
-" extracted by matching between the beginning and end of the regex.
-" If there is no local scope, returns an empty list.
+" Builds a list of namespaces made available in the current local scope
+" up to the cursor's position; the strings are extracted by matching
+" between the beginning and end of the regex.  If there is no local
+" scope, returns an empty list.
 "
 " @param regex the regex used for matching namespace instructions
 " @return List of namespaces strings
@@ -23,22 +24,42 @@ let s:directiveRegex = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*'
 function! s:GetLocalUsing(regex)
     let usingList = []
     " Start of local scope
-    let localStopLine = searchpair('{', '', '}', 'bnr')
-    if localStopLine
-        let originalPos = getpos('.')
-        " Move cursor to end of match
-        while search(a:regex, 'bWe', localStopLine)
-            " TODO: test if the instruction is before the bracket
-            call s:AppendUsingToList(usingList, a:regex)
+    let localStop = searchpair('{', '', '}', 'bnr')
+
+    " If we are in global scope, do nothing
+    if localStop
+        let origPos = getpos('.')
+
+        " Search backwards and put cursor at end of match
+        while search(a:regex, 'bWe', localStop)
+            " Look up the end of the current local scope, and ensure it
+            " encompasses the position where the search started.
+            " ex1:
+            " {
+            "   { using namespace std;}
+            "   ...
+            "   $cursor_position
+            " }
+            " ex2:
+            " using namespace std; {
+            "   ...
+            "   $cursor_position
+            " }
+            let scopeEnd = searchpairpos('{', '', '}', 'n')
+            if scopeEnd[0] >= origPos[1] && scopeEnd[1] >= origPos[2]
+                call s:AppendUsingToList(usingList, a:regex)
+            endif
         endwhile
-        call setpos('.', originalPos)
+
+        call setpos('.', origPos)
     endif
+
     return usingList
 endfunc
 
-" Builds up a list of namespaces made available in the global scope of
-" the current buffer up to the cursor's position; the strings are
-" extracted by matching between the beginning and end of the regex.
+" Builds a list of namespaces made available in the global scope of the
+" current buffer up to the cursor's position; the strings are extracted
+" by matching between the beginning and end of the regex.
 "
 " @param regex the regex used for matching namespace instructions
 " @return List of namespaces strings
