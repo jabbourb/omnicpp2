@@ -6,9 +6,9 @@
 " The following regexes extract namespaces as XX::YY
 
 " Regex used for matching using-declarations
-let s:declarationRegex = '\C\v<using>\_s+\zs\w+(\_s*::\_s*\w+)+\ze\_s*;'
+let s:reDeclaration = '\C\v<using>\_s+\zs\w+(\_s*::\_s*\w+)+\ze\_s*;'
 " Regex used for matching using-directives
-let s:directiveRegex = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*\ze\_s*;'
+let s:reDirective = '\C\v<using>\_s+<namespace>\_s+\zs\w+(\_s*::\_s*\w+)*\ze\_s*;'
 
 
 "{{{1 Internal functions ===============================================
@@ -44,23 +44,24 @@ endfunc
 "{{{1 Interface wrappers ===============================================
 
 function! omnicpp#ns#GetGlobalUsingDirectives(file)
-    return s:GetGlobalUsingFromFile(s:directiveRegex, a:file)
+    return s:GetGlobalUsingFromFile(s:reDirective, a:file)
 endfunc
 
+" Replace singletons matches by their first element
 function! omnicpp#ns#GetLocalUsingDeclarations()
-    return omnicpp#scope#MatchLocal(s:declarationRegex)
+    return map(omnicpp#scope#MatchLocal(s:reDeclaration, ['.*']), 'v:val[0]')
 endfunc
 
 function! omnicpp#ns#GetLocalUsingDirectives()
-    return omnicpp#scope#MatchLocal(s:directiveRegex)
+    return map(omnicpp#scope#MatchLocal(s:reDirective, ['.*']), 'v:val[0]')
 endfunc
 
 function! omnicpp#ns#GetGlobalUsingDeclarations()
-    return omnicpp#scope#MatchGlobal(s:declarationRegex)
+    return map(omnicpp#scope#MatchGlobal(s:reDeclaration, ['.*']), 'v:val[0]')
 endfunc
 
 function! omnicpp#ns#GetGlobalUsingDirectives()
-    return omnicpp#scope#MatchGlobal(s:directiveRegex)
+    return map(omnicpp#scope#MatchGlobal(s:reDirective, ['.*']), 'v:val[0]')
 endfunc
 
 " vim: fdm=marker
