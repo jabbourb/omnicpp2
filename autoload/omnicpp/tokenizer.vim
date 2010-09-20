@@ -10,26 +10,7 @@
 "   - operator : an operator or punctutation sign (see syntax.vim)
 "   - unknown : none of the above rules matched at the current position
 
-
 "{{{1 Types definition
-
-" Regexes
-" Note: all regexes must be preceded by either (\v, \m, \M or \V) for
-" the aggregated regex to work
-
-" The digits regex first matches against hex numbers, then floating
-" numbers, and finally plain integers
-let g:omnicpp#tokenizer#reDigit = '\v-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
-" Strings will have been emptied
-let s:reString = '\m""'
-" Valide C++ identifiers (allows the $ character)
-let g:omnicpp#tokenizer#reIdentifier = '\v<\h(\w|\d|\$)*>'
-" ORing keywords
-let s:reKeyword = '\V\C\<'.join(g:omnicpp#syntax#Keywords, '\>\|\<').'\>'
-" ORing operators
-let s:reOperator = '\V'.join(g:omnicpp#syntax#Operators, '\|')
-" The unknown type matches anything up to the end of the input
-let s:reUnknown = '\v.+'
 
 function! s:addTypeRegex (name, regex)
     call add(s:TypeRegex, { 'name' : a:name, 'regex' : a:regex})
@@ -39,12 +20,12 @@ endfunc
 " Types are stored as an ordered list of objects, each having 'name'
 " and 'regex' entries.
 let s:TypeRegex = []
-call s:addTypeRegex('digit',        g:omnicpp#tokenizer#reDigit)
-call s:addTypeRegex('string',       s:reString)
-call s:addTypeRegex('keyword',      s:reKeyword)
-call s:addTypeRegex('identifier',   g:omnicpp#tokenizer#reIdentifier)
-call s:addTypeRegex('operator',     s:reOperator)
-call s:addTypeRegex('unknown',      s:reUnknown)
+call s:addTypeRegex('digit',        g:omnicpp#syntax#reDigit)
+call s:addTypeRegex('string',       '\m""')                         "Strings will have been emptied
+call s:addTypeRegex('keyword',      g:omnicpp#syntax#reKeyword)
+call s:addTypeRegex('identifier',   g:omnicpp#syntax#reIdSimple)    "We match keywords first
+call s:addTypeRegex('operator',     g:omnicpp#syntax#reOperator)
+call s:addTypeRegex('unknown',      '\v.+')                         "Match anything till end of line
 
 " The regex used to match any token
 let s:reTokenList = []
