@@ -2,29 +2,18 @@
 " Description: Functions for matching a regex in local and global scopes 
 
 
-" Search backwards for a master regexp in the local scope, starting at
-" the cursor's position; if it is found, match the partial regexes, in
-" order, against the corresponding string (see s:GetMatches()).
-" If we are in global scope, returns an empty list.
+" Builds a list of matches matching a given regex in the current
+" local scope up to the cursor's position; the strings are extracted by
+" matching between the beginning and end of the regex.  If we are in
+" global scope, returns an empty list.
 "
-" This has two advantages over single regexp matching:
-" - it is useful for circumventing *E51* 'too many (' in complicated
-"   regexes: the fine grained matching is applied in the sub regexes
-"   instead of the master regexp.
-" - we can extract multiple sub patterns in a single pass (don't know if
-"   that can be done in a single regexp)
-"
-" @param reMaster the master regexp, used to find the whole statement in
-" the local scope
-" @param reSubs a list of sub regexes to be matched against the
-" whole statement found using the master regexp
+" @param regex the regex used for matching matches
 " @param ... an optional non-null argument stops the search after the
 " first match is found (the match that takes precedence)
 "
-" @return List of matches; every match is a list of strings, each
-" corresponding to a sub-regex match
+" @return List of matched strings
 "
-function! omnicpp#scope#MatchLocal(reMaster, reSubs, ...)
+function! omnicpp#scope#MatchLocal(regex, ...)
     let matches = []
     " Start of local scope
     let localStop = searchpair('{', '', '}', 'bnr')
@@ -33,11 +22,8 @@ function! omnicpp#scope#MatchLocal(reMaster, reSubs, ...)
     if localStop
         let origPos = getpos('.')
 
-        " Search backwards for the main regexp
-        while search(a:reMaster, 'bWe', localStop)
-            " Skip if we are in a comment or string
-            if omnicpp#utils#IsCursorInCommentOrString() | continue | endif
-
+        " Search backwards and put cursor at end of match
+        while search(a:regex, 'bWe', localStop)
             " Look up the end of the current local scope, and ensure it
             " encompasses the position where the search started.
             " ex1 of otherwise false positive looking for namespaces:
@@ -52,15 +38,10 @@ function! omnicpp#scope#MatchLocal(reMaster, reSubs, ...)
             "   $cursor_position
             " }
             let scopeEnd = searchpairpos('{', '', '}', 'n')
-            if !(scopeEnd[0] >= origPos[1] && scopeEnd[1] >= origPos[2]) | continue | endif
-
-            " Extract string between start and end of match, then apply
-            " regexes
-            let matchEnd = getpos('.')[1:2]
-            let matchStart = searchpos(a:reMaster, 'bW')
-            let matches += [s:GetSubMatches(omnicpp#utils#GetCode(matchStart, matchEnd), a:reSubs)]
-
-            if a:0 && a:1 | break | endif
+            if scopeEnd[0] >= origPos[1] && scopeEnd[1] >= origPos[2]
+                let matches += s:GetInstructionBack(a:regex)
+                if a:0 && a:1 | break | endif
+            endif
         endwhile
 
         call setpos('.', origPos)
@@ -70,64 +51,49 @@ function! omnicpp#scope#MatchLocal(reMaster, reSubs, ...)
 endfunc
 
 
-" Search backwards for a master regexp in the global scope, starting at
-" the cursor's position; if it is found, match the partial regexes, in
-" order, against the corresponding string (see
-" omnicpp#scope#GetLocal()).
+" Builds a list of instructions matching a regex in the global scope of
+" the current buffer up to the cursor's position; the strings are
+" extracted by matching between the beginning and end of the regex.
 "
-" @param reMaster the master regexp, used to find the whole statement in
-" the local scope
-" @param reSubs a list of sub regexes to be matched against the
-" whole statement found using the master regexp
+" @param regex the regex used for matching matches
 " @param ... an optional non-null argument stops the search after the
 " first match is found (the match that takes precedence)
 "
-" @return List of matches; every match is a list of strings, each
-" corresponding to a sub-regex match
+" @return List of matched strings
 "
 " TODO: parse includes too
-function! omnicpp#scope#MatchGlobal(reMaster, reSubs, ...)
+function! omnicpp#scope#MatchGlobal(regex, ...)
     let matches = []
     let originalPos = getpos('.')
-
-    while search(a:reMaster, 'bWe')
-        " If we are inside a block, get out of it and continue the loop
-        if searchpair('{', '', '}', 'br') | continue | endif
-
-        if omnicpp#utils#IsCursorInCommentOrString() | continue | endif
-
-        let matchEnd = getpos('.')[1:2]
-        let matchStart = searchpos(a:reMaster, 'bW')
-        let matches += [s:GetSubMatches(omnicpp#utils#GetCode(matchStart, matchEnd), a:reSubs)]
-
-        if a:0 && a:1 | break | endif
+    while search(a:regex, 'bWe')
+        " If we are inside a block, get out of it and continue the loop,
+        " else add the match
+        if !searchpair('{', '', '}', 'br')
+            let matches += s:GetInstructionBack(a:regex)
+            if a:0 && a:1 | break | endif
+        endif
     endwhile
-
     call setpos('.', originalPos)
     return matches
 endfunc
 
 
-" Match a list of regexes, in order, against a string. Each match starts
-" where the previous one has ended, and yields a string (a splice at the
-" match boundaries) that is appended to the results after it has been
-" purged from spaces.
+" Assuming the cursor is on the last character of an instruction, match
+" up to its beginning and return the corresponding string, making sure
+" we are not in a comment or string and removing spaces.
 "
-" @param str the string to match the regexes against
-" @param reSubs a list of regexes to match sequentially against the
-" argument string
+" This is used when parsing the current buffer backwards.
 "
-" @return List of strings
+" @param regex the regex used to match the namespace instruction
+" @return the extracted string in a single element list, or an empty
+" list
 "
-function! s:GetSubMatches(str, reSubs)
-    let matches = []
-    let matchEnd = 0
-    for regex in a:reSubs
-        let matchStart = match(a:str, regex, matchEnd)
-        if matchStart == -1 | continue | endif
+function! s:GetInstructionBack(regex)
+    if omnicpp#utils#IsCursorInCommentOrString()
+        return []
+    endif
 
-        let matchEnd = matchend(a:str, regex, matchEnd)
-        call add(matches, substitute(a:str[matchStart : matchEnd-1], '\s', '', 'g'))
-    endfor
-    return matches
+    let matchEnd = getpos('.')[1:2]
+    let matchStart = searchpos(a:regex, 'bW')
+    return [omnicpp#utils#GetCode(matchStart, matchEnd)]
 endfunc

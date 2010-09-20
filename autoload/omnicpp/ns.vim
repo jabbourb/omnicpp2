@@ -47,21 +47,20 @@ function! omnicpp#ns#GetGlobalUsingDirectives(file)
     return s:GetGlobalUsingFromFile(s:reDirective, a:file)
 endfunc
 
-" Replace singletons matches by their first element
 function! omnicpp#ns#GetLocalUsingDeclarations()
-    return map(omnicpp#scope#MatchLocal(s:reDeclaration, ['.*']), 'v:val[0]')
+    return omnicpp#scope#MatchLocal(s:reDeclaration)
 endfunc
 
 function! omnicpp#ns#GetLocalUsingDirectives()
-    return map(omnicpp#scope#MatchLocal(s:reDirective, ['.*']), 'v:val[0]')
+    return omnicpp#scope#MatchLocal(s:reDirective)
 endfunc
 
 function! omnicpp#ns#GetGlobalUsingDeclarations()
-    return map(omnicpp#scope#MatchGlobal(s:reDeclaration, ['.*']), 'v:val[0]')
+    return omnicpp#scope#MatchGlobal(s:reDeclaration)
 endfunc
 
 function! omnicpp#ns#GetGlobalUsingDirectives()
-    return map(omnicpp#scope#MatchGlobal(s:reDirective, ['.*']), 'v:val[0]')
+    return omnicpp#scope#MatchGlobal(s:reDirective)
 endfunc
 
 " vim: fdm=marker
