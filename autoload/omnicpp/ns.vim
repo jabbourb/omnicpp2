@@ -43,23 +43,23 @@ endfunc
 
 "{{{1 Interface wrappers ===============================================
 
-function! omnicpp#ns#GetGlobalUsingDirectives(file)
+function! omnicpp#ns#GlobalUsingDirectives(file)
     return s:GetGlobalUsingFromFile(s:reDirective, a:file)
 endfunc
 
-function! omnicpp#ns#GetLocalUsingDeclarations()
+function! omnicpp#ns#LocalUsingDeclarations()
     return omnicpp#scope#MatchLocal(s:reDeclaration)
 endfunc
 
-function! omnicpp#ns#GetLocalUsingDirectives()
+function! omnicpp#ns#LocalUsingDirectives()
     return omnicpp#scope#MatchLocal(s:reDirective)
 endfunc
 
-function! omnicpp#ns#GetGlobalUsingDeclarations()
+function! omnicpp#ns#GlobalUsingDeclarations()
     return omnicpp#scope#MatchGlobal(s:reDeclaration)
 endfunc
 
-function! omnicpp#ns#GetGlobalUsingDirectives()
+function! omnicpp#ns#GlobalUsingDirectives()
     return omnicpp#scope#MatchGlobal(s:reDirective)
 endfunc
 

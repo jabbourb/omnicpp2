@@ -98,7 +98,7 @@ function! omnicpp#tokenizer#TokenizeCurrentInstruction()
         endif
     endwhile
     call setpos('.', origPos)
-    return omnicpp#tokenizer#Tokenize(omnicpp#utils#GetCode(startPos, origPos[1:2], 1))
+    return omnicpp#tokenizer#Tokenize(omnicpp#utils#ExtractCode(startPos, origPos[1:2], 1))
 endfunc
 
 " vim: fdm=marker

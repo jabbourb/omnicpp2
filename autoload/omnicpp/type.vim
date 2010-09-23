@@ -40,7 +40,7 @@ let s:reArray =  '\v\[.{-}\]$'
 "   otherwise
 "   - array: set to 1 if the variable is an array, 0 otherwise
 "
-function! omnicpp#type#GetLocalType(var)
+function! omnicpp#type#LocalType(var)
     return s:GetTypeFromString(get(omnicpp#scope#MatchLocal(s:reMasterPre.a:var.s:reMasterPost, 1), 0, ''))
 endfunc
 
@@ -53,20 +53,20 @@ endfunc
 "
 " @param, @return see GetLocalType
 "
-function! omnicpp#type#GetType(var)
-    let type = omnicpp#type#GetLocalType(a:var)
+function! omnicpp#type#Type(var)
+    let type = omnicpp#type#LocalType(a:var)
     if !empty(type) | return type | endif
 
     " 'using XX::var' where XX::var is a type and var exists as a
     " variable is usually an error; therefor we assume XX::var to name a
     " variable.
-    for dec in omnicpp#ns#GetLocalUsingDeclarations()
+    for dec in omnicpp#ns#LocalUsingDeclarations()
         if split(dec, '::')[-1] == a:var
             return s:TagSearchType(dec)
         endif
     endfor
 
-    for cls in omnicpp#class#GetBaseClasses()
+    for cls in omnicpp#class#BaseClasses()
         let type = s:TagSearchType(cls.'::'.a:var)
         if !empty(type) | return type | endif
     endif
@@ -74,13 +74,13 @@ function! omnicpp#type#GetType(var)
     let type = s:TagSearchType(omnicpp#ns#CurrentNS().a:var)
     if !empty(type) | return type | endif
 
-    for dec in omnicpp#ns#GetGlobalUsingDeclarations()
+    for dec in omnicpp#ns#GlobalUsingDeclarations()
         if split(dec, '::')[-1] == a:var
             return s:TagSearchType(dec)
         endif
     endfor
 
-    for dir in (omnicpp#ns#GetLocalUsingDirectives() + omnicpp#ns#GetGlobalUsingDirectives())
+    for dir in (omnicpp#ns#LocalUsingDirectives() + omnicpp#ns#GetGlobalUsingDirectives())
         let type = s:TagSearchType(dir.'::'.a:var)
         if !empty(type) | return type | endif
     endfor

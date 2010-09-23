@@ -13,7 +13,7 @@
 "
 " @return the code string between startPos and endPos
 "
-function! omnicpp#utils#GetCode(startPos, endPos, ...)
+function! omnicpp#utils#ExtractCode(startPos, endPos, ...)
     if a:0 && a:1
         let startPos = a:startPos[1]
         let endPos = a:endPos[1]-1

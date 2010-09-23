@@ -95,5 +95,5 @@ function! s:GetInstructionBack(regex)
 
     let matchEnd = getpos('.')[1:2]
     let matchStart = searchpos(a:regex, 'bW')
-    return [omnicpp#utils#GetCode(matchStart, matchEnd)]
+    return [omnicpp#utils#ExtractCode(matchStart, matchEnd)]
 endfunc
