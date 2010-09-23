@@ -45,15 +45,46 @@ function! omnicpp#type#GetLocalType(var)
 endfunc
 
 
-" Look up the type of a variable in the global scope of the current
-" buffer up to the cursor's position.
+" Look up the type of a variable. Will search in the following order:
+" - Local scope
+" - Local using declaration
+" - Class scope
+" - Global scope | Using directives | Global using declaration
 "
 " @param, @return see GetLocalType
 "
-function! omnicpp#type#GetGlobalType(var)
-    return s:GetTypeFromString(get(omnicpp#scope#MatchGlobal(s:reMasterPre.a:var.s:reMasterPost, 1), 0, ''))
-endfunc
+function! omnicpp#type#GetType(var)
+    let type = omnicpp#type#GetLocalType(a:var)
+    if !empty(type) | return type | endif
 
+    " 'using XX::var' where XX::var is a type and var exists as a
+    " variable is usually an error; therefor we assume XX::var to name a
+    " variable.
+    for dec in omnicpp#ns#GetLocalUsingDeclarations()
+        if split(dec, '::')[-1] == a:var
+            return s:TagSearchType(dec)
+        endif
+    endfor
+
+    for cls in omnicpp#class#GetBaseClasses()
+        let type = s:TagSearchType(cls.'::'.a:var)
+        if !empty(type) | return type | endif
+    endif
+
+    let type = s:TagSearchType(omnicpp#ns#CurrentNS().a:var)
+    if !empty(type) | return type | endif
+
+    for dec in omnicpp#ns#GetGlobalUsingDeclarations()
+        if split(dec, '::')[-1] == a:var
+            return s:TagSearchType(dec)
+        endif
+    endfor
+
+    for dir in (omnicpp#ns#GetLocalUsingDirectives() + omnicpp#ns#GetGlobalUsingDirectives())
+        let type = s:TagSearchType(dir.'::'.a:var)
+        if !empty(type) | return type | endif
+    endfor
+endfunc
 
 "{{{1 Auxiliary
 
@@ -69,6 +100,11 @@ function! s:GetTypeFromString(str)
     if match(a:str, s:reArray)>=0 | let type.array = 1 | endif
 
     return type
+endfunc
+
+" Search tag files for the given qualified variable name, making sure
+" the source file it appears in is visible from the current buffer.
+function! s:TagSearchType(qualifiedName)
 endfunc
 
 " vim: fdm=marker
