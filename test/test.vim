@@ -1,9 +1,15 @@
 " Author: Bassam JABBOUR
 " Description: Minimalist test framework
 
-let s:reTest = '^\s*fu\%[nction]!\=\s\+\zsb:Test.\{-}\ze[ (]'
+if exists('g:TestLoaded')
+    finish
+else
+    let g:TestLoaded = 1
+endif
 
-func! b:Assert (expr)
+let s:reTest = '^\s*fu\%[nction]!\=\s\+\zsg:Test.\{-}\ze[ (]'
+
+func! g:Assert (expr)
     if empty(a:expr) | throw "Assert" | endif
 endfunc
 
@@ -12,30 +18,53 @@ func! s:RunTests()
     so %
     norm gg
 
-    let numTests = 0
-    let success = 0
-    let fail = 0
-
+    " List of tests
+    let tests = {}
     while search(s:reTest, 'W')
         if index(['vimComment', 'vimString'], synIDattr(synID(line('.'), col('.'), 0), 'name')) >= 0 | continue | endif
 
         let start = getpos('.')[2]
         let end = searchpos(s:reTest, 'We')[1]
-        let Test = function(getline('.')[start-1 : end-1])
-
-        let numTests += 1
-        echo Test
-        try
-            call Test()
-            echo "\tSuccess"
-            let success += 1
-        catch /Assert/
-            echo "\tFailure"
-            let fail += 1
-        endtry
+        let tests[getline('.')[start-1 : end-1]] = 0
     endwhile
 
-    echo numTests  "tests,"  success "ok,"  fail  "failed"
+    " Open test data
+    if exists('b:testFile')
+        exe "silent e files/".b:testFile
+        let fileBased = 1
+    endif
+
+    " Run tests
+    for fname in keys(tests)
+        " Position the cursor on //*TestName* comment
+        call search('\V//*'.substitute(fname, 'g:Test', '', '').'*', 'w')
+
+        let Test = function(fname)
+        try
+            call Test()
+            let tests[fname] = 1
+        catch /Assert/
+        endtry
+    endfor
+
+    if fileBased | silent! bd | endif
+
+
+    " Display results
+    let success = 0
+    let fail = 0
+    for fname in keys(tests)
+        echo fname
+        if tests[fname]
+            echo "\tSuccess"
+            let success += 1
+        else
+            echo "\tFailure"
+            let fail += 1
+        endif
+    endfor
+
+    echo len(tests) "tests,"  success "ok,"  fail "failed"
     call setpos('.', origPos)
 endfunc
 
