@@ -48,19 +48,19 @@ function! omnicpp#ns#GlobalUsingDirectives(file)
 endfunc
 
 function! omnicpp#ns#LocalUsingDeclarations()
-    return omnicpp#scope#MatchLocal(s:reDeclaration)
+    return map(omnicpp#scope#MatchLocal(s:reDeclaration), 'substitute(v:val, " ", "", "g")')
 endfunc
 
 function! omnicpp#ns#LocalUsingDirectives()
-    return omnicpp#scope#MatchLocal(s:reDirective)
+    return map(omnicpp#scope#MatchLocal(s:reDirective), 'substitute(v:val, " ", "", "g")')
 endfunc
 
 function! omnicpp#ns#GlobalUsingDeclarations()
-    return omnicpp#scope#MatchGlobal(s:reDeclaration)
+    return map(omnicpp#scope#MatchGlobal(s:reDeclaration), 'substitute(v:val, " ", "", "g")')
 endfunc
 
 function! omnicpp#ns#GlobalUsingDirectives()
-    return omnicpp#scope#MatchGlobal(s:reDirective)
+    return map(omnicpp#scope#MatchGlobal(s:reDirective), 'substitute(v:val, " ", "", "g")')
 endfunc
 
 " vim: fdm=marker
