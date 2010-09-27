@@ -9,6 +9,10 @@ c1;
 using namespace g1::
     g2;
 
+    //using namespace std;
+
+printf("using n1::n2;");
+
 {
 using n1::cls1;
 using
@@ -22,6 +26,8 @@ using
   n2;
 using namespace n1::
   n2;
+
+//using n1::c0;
 
 //*LocalUsing*
 }

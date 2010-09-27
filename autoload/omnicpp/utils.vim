@@ -64,5 +64,5 @@ endfunc
 " position backward
 function! omnicpp#utils#IsCursorInCommentOrString(...)
     let col = a:0 && a:1 ? col('.')-1 : col('.')
-    return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cIncluded')>=0
+    return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
 endfunc
