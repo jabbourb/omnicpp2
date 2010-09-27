@@ -31,7 +31,7 @@ func! s:RunTests()
     " Open test data
     if exists('b:testFile')
         exe "silent e files/".b:testFile
-        let fileBased = 1
+        let openFile = 1
     endif
 
     " Run tests
@@ -47,7 +47,7 @@ func! s:RunTests()
         endtry
     endfor
 
-    if fileBased | silent! bd | endif
+    if exists('openFile') | silent! bd | endif
 
 
     " Display results
