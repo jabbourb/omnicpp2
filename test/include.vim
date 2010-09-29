@@ -1,0 +1,24 @@
+" Author: Bassam JABBOUR
+" Description: Test suite for include.vim
+
+let b:testFile = "include.cpp"
+
+func! g:TestLocalIncludes()
+    let includes = omnicpp#include#LocalIncludes()
+    call sort(includes)
+    " Fails; see Bug#2
+    call g:Assert(includes == ['"l1.h"', '"l3.h"', '<l2.h>'])
+endfunc
+
+func! g:TestGlobalIncludes()
+    let includes = omnicpp#include#GlobalIncludes()
+    call sort(includes)
+    call g:Assert(includes == ['"g1.h"', '<g2.h>'])
+endfunc
+
+func! g:TestAllIncludes()
+    let includes = omnicpp#include#AllIncludes()
+    call g:Assert(includes == [expand('%:p:h').'/include.cpp',
+                \ expand('%:p:h').'/include.h',
+                \ expand('%:p:h').'/include2.h'])
+endfunc
