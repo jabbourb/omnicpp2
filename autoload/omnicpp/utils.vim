@@ -34,27 +34,28 @@ function! omnicpp#utils#ExtractCode(startPos, endPos, ...)
         let lines[-1] = strpart(lines[-1], 0, endByte)
     endif
 
-    return omnicpp#utils#Sanitize(lines)
+    let text = s:RemoveLineComments(lines)
+    " Don't empty strings inside #include statements
+    if synIDattr(synID(a:startPos[0], startPos, 0), 'name') !~ 'cInclude'
+        let text = s:EmptyStrings(text)
+    endif
+    return s:RemoveBlockComments(text)
 endfunc
 
-
-" Sanitize lines, removing comments and emptying strings
-"
-" @param lines the code lines to process (list of strings)
-" @return result as a single string
-"
-function! omnicpp#utils#Sanitize(lines)
-    " Remove line comments
+" Remove line comments, and concatenate the lines
+func! s:RemoveLineComments(lines)
     call map(a:lines, "substitute(v:val, '//.*', '', 'g')")
+    return join(a:lines, ' ')
+endfunc
 
-    let single = join(a:lines, ' ')
-    " Empty strings
-    let single = substitute(single, '"[^"]*"', '""', 'g')
-    " C style comments; we don't have to worry about being in a string
-    " or line comment
-    let single = substitute(single, '\M/*\_.\{-}*/', '', 'g')
+" Replace strings (quote-delimited text) with empty quotes
+func! s:EmptyStrings(text)
+    return substitute(a:text, '"[^"]*"', '""', 'g')
+endfunc
 
-    return single
+" Remove block comments
+func! s:RemoveBlockComments(text)
+    return substitute(a:text, '\M/*\_.\{-}*/', '', 'g')
 endfunc
 
 
