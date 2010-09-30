@@ -3,6 +3,6 @@
 
 #include "include2.h"
 #include <vector>
-#include <string.h>
+#include <string>
 
 #endif /* INCLUDE_H */

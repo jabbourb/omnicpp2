@@ -67,14 +67,25 @@ endfunc
 "
 func! s:ResolveInclude(include, currentDir)
     let path = ''
+    let names = [a:include[1:-2]]
+
     " Search current directory for quoted includes
     if a:include[0]=='"'
-        let path = get(split(globpath(a:currentDir, a:include[1:-2],'\n')), 0, '')
+        let path = get(split(globpath(a:currentDir, names[0]),'\n'), 0, '')
+    " Extension is optional for bracket includes
+    else
+        let names += [names[0].'.h', names[0].'.hpp']
     endif
-    " Search path for all includes
-    if empty(path)
-        let path = get(split(globpath(&path, a:include[1:-2]),'\n'), 0, '')
-    endif
+
+    " Search &path for all includes
+    for inc in names
+        if empty(path)
+            let path = get(split(globpath(&path, inc),'\n'), 0, '')
+        else
+            break
+        endif
+    endfor
+
     return path
 endfunc
 
