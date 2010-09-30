@@ -18,7 +18,10 @@ endfunc
 
 func! g:TestAllIncludes()
     let includes = omnicpp#include#AllIncludes()
-    call g:Assert(includes == [expand('%:p:h').'/include.cpp',
+    call sort(includes)
+
+    call g:Assert(includes[0:2] == [expand('%:p:h').'/include.cpp',
                 \ expand('%:p:h').'/include.h',
                 \ expand('%:p:h').'/include2.h'])
+    call g:Assert(index(includes, '/usr/include/string.h') >= 0)
 endfunc

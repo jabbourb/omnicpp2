@@ -17,57 +17,72 @@ function! omnicpp#include#GlobalIncludes()
 endfunc
 
 " List all includes visible from the current buffer. We first look up
-" local and global includes, then recursively 'grep' those, building up
-" a list of visited files as we go.
+" local and global includes; then, for every include, we parse that
+" file for includes (if it hasn't been processed already), add those to
+" the list of includes, and loop.
+"
+" At the end, the list of visited files is returned (every include found
+" and parsed is listed here)
 "
 " @return list of filenames, including the current buffer
 "
 func! omnicpp#include#AllIncludes()
+    " The includes to be parsed
     let includes = omnicpp#include#LocalIncludes()
     let includes += omnicpp#include#GlobalIncludes()
 
-    " Add current file to parsed includes
+    " Add current filename to parsed files
     let visited = [expand('%:p')]
-    call s:ParseIncludes(includes, expand('%:p:h'), visited)
+
+    " Resolve all includes
+    let pwd = expand('%:p:h')
+    call s:ResolveIncludes(includes, pwd)
+
+    while !empty(includes)
+        let inc = remove(includes,-1)
+        " Check for duplicates
+        if index(visited, inc) >= 0
+            continue
+        endif
+        call add(visited, inc)
+
+        let found = s:ParseFile(inc)
+        let pwd = '/'.join(split(inc,'/')[:-2],'/')
+        call s:ResolveIncludes(found, pwd)
+        " It is ok to have duplicates, only the first one will be parsed
+        let includes += found
+    endwhile
+
     return visited
 endfunc
 
-" Recursive auxiliary function: given a list of includes, look up the
-" matching files in the current directory and/or the path; for every
-" file found, append it to the list of visited files, then recursively
-" parse it with the current directory set to that of the parent file.
-"
-" @param includes list of includes ['"inc1.h"', '<inc2.h>']
-" @param currentDir the directory where to look up quoted includes
-" @param visited the list of visited files
-"
-" @return nothing; modifies the list of visited files
-"
-func! s:ParseIncludes(includes, currentDir, visited)
-    for inc in a:includes
-       if index(a:visited, inc) == -1
-           let file = ''
-           " Search current directory for quoted includes
-           if inc[0] == '"'
-               let file = get(split(globpath(a:currentDir, inc[1:-2],'\n')), 0, '')
-           endif
-           " Search path for all includes
-           if empty(file)
-               let file = get(split(globpath(&path, inc[1:-2]),'\n'), 0, '')
-           endif
 
-           " We were successful in finding the file
-           if !empty(file)
-               " Add the file to the list of parsed includes
-               call add(a:visited, file)
-               " Grep includes
-               let found = s:ParseFile(file)
-               " Recursively parse them, changing current directory to
-               " that of the parent file
-               call s:ParseIncludes(found, '/'.join(split(file,'/')[:-2],'/'), a:visited)
-           endif
-       endif
-   endfor
+" Resolve the filename referenced by an include directive by first
+" searching the current directory (for quoted includes), then the path
+"
+" @param include the include name to resolve
+" @param currentDir the current directory (for resolving quoted
+" includes)
+" @return the filename string if found, or an empty string
+"
+func! s:ResolveInclude(include, currentDir)
+    let path = ''
+    " Search current directory for quoted includes
+    if a:include[0]=='"'
+        let path = get(split(globpath(a:currentDir, a:include[1:-2],'\n')), 0, '')
+    endif
+    " Search path for all includes
+    if empty(path)
+        let path = get(split(globpath(&path, a:include[1:-2]),'\n'), 0, '')
+    endif
+    return path
+endfunc
+
+" Wrapper function around ResolveInclude; resolves all includes in a
+" list, and removes empty entries (includes that weren't found)
+func! s:ResolveIncludes(includes, currentDir)
+    call map(a:includes, 's:ResolveInclude(v:val, a:currentDir)')
+    call filter(a:includes, '!empty(v:val)')
 endfunc
 
 " Grep includes from the given file into the location list, then extract
