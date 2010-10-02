@@ -41,7 +41,9 @@ func! s:RunTests()
 
         let Test = function(fname)
         try
+            let origPos = getpos('.')
             call Test()
+            call g:Assert(origPos == getpos('.'))
             let tests[fname] = 1
         catch /Assert/
         endtry
