@@ -3,7 +3,7 @@
 using namespace g1;
 
 using g1
-    ::
+    :: //hi
 c1;
 
 using namespace g1::
