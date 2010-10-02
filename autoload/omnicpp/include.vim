@@ -16,13 +16,13 @@ function! omnicpp#include#GlobalIncludes()
     return omnicpp#scope#MatchGlobal(s:reInclude)
 endfunc
 
-" List all includes visible from the current buffer. We first look up
-" local and global includes; then, for every include, we parse that
-" file for includes (if it hasn't been processed already), add those to
-" the list of includes, and loop.
+" List all includes visible from the current buffer. We start by
+" building a list of local and global includes; then we parse every
+" entry for additional includes, add those to the list, and loop till
+" all the includes have been parsed.
 "
 " At the end, the list of visited files is returned (every include found
-" and parsed is listed here)
+" and parsed is listed once)
 "
 " @return list of filenames, including the current buffer
 "
@@ -58,7 +58,8 @@ endfunc
 
 
 " Resolve the filename referenced by an include directive by first
-" searching the current directory (for quoted includes), then the path
+" searching the current directory (for quoted includes), then the &path
+" variable.
 "
 " @param include the include name to resolve
 " @param currentDir the current directory (for resolving quoted
