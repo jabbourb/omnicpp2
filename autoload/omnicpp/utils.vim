@@ -44,9 +44,9 @@ func! s:JoinBackslash(lines)
     for line in a:lines
         let joinLine = matchstr(line, '.*\ze\\\s*')
         if !empty(joinLine)
-            let acc = acc.' '.joinLine
+            let acc .= ' '.joinLine
         else
-            let acc = acc.' '.line
+            let acc .= ' '.line
             call add(joined, acc)
             let acc = ''
         endif
@@ -62,11 +62,41 @@ endfunc
 " @return a single string
 "
 func! s:CommentsAndStrings(lines)
-    " Search for strings and line comments not inside a block comment,
-    " with strings not in an include statement, and delete them
-    call map(a:lines, 'substitute(v:val, "\\v((/\\*.*)@<!|(/\\*.{-}\\*/.*)@<=)((#include\\s+)@<!\"\\zs.{-}\\ze\"|//.*)", "", "g")')
-    " Delete block comments after concatenating lines
-    return substitute(join(a:lines,' '), '\M/*\.\{-}*/', '', 'g')
+    let sanitized = ''
+
+    let blockComment = 0
+    for line in a:lines
+        " If we are in a block comment started on a previous line, check
+        " for its end
+        if blockComment
+            let commentEnd = matchend(line, '\*/')
+            " Block comment ends on this line
+            if commentEnd != -1
+                let line = strpart(line, commentEnd)
+                let blockComment = 0
+                " Whole line is inside comment, skip it
+            else
+                continue
+            endif
+        endif
+
+        " Search for strings, line comments and block comments starting on
+        " the current line, with strings not in an include statement, and
+        " delete them. We keep markers around block comments to detect
+        " wether they were closed on the same line.
+        let line = substitute(line, '\v(/\*\zs.{-}\ze(\*/|$))'.'|'.'((#\s*include\s+)@<!"\zs.{-}\ze")'.'|'.'//.*', '', 'g')
+        " Remove block markers when comments are closed on the same line
+        let line = substitute(line, '\V/**/', '', 'g')
+        " An orphan '/*' marker indicates a block comment that is still open
+        if match(line, '/\*') != -1
+            let blockComment = 1
+            let line = substitute(line, '/\*', '', '')
+        endif
+
+        let sanitized .= ' '.line
+    endfor
+
+    return sanitized
 endfunc
 
 
