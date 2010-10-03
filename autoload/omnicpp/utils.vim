@@ -34,28 +34,39 @@ function! omnicpp#utils#ExtractCode(startPos, endPos, ...)
         let lines[-1] = strpart(lines[-1], 0, endByte)
     endif
 
-    let text = s:RemoveLineComments(lines)
-    " Don't empty strings inside #include statements
-    if synIDattr(synID(a:startPos[0], startPos, 0), 'name') !~ 'cInclude'
-        let text = s:EmptyStrings(text)
-    endif
-    return s:RemoveBlockComments(text)
+    return s:CommentsAndStrings(s:JoinBackslash(lines))
 endfunc
 
-" Remove line comments, and concatenate the lines
-func! s:RemoveLineComments(lines)
-    call map(a:lines, "substitute(v:val, '//.*', '', 'g')")
-    return join(a:lines, ' ')
+" Concatenate lines ending with a backslash
+func! s:JoinBackslash(lines)
+    let joined = []
+    let acc = ''
+    for line in a:lines
+        let joinLine = matchstr(line, '.*\ze\\\s*')
+        if !empty(joinLine)
+            let acc = acc.' '.joinLine
+        else
+            let acc = acc.' '.line
+            call add(joined, acc)
+            let acc = ''
+        endif
+    endfor
+    if !empty(acc) | call add(joined, acc) | endif
+    return joined
 endfunc
 
-" Replace strings (quote-delimited text) with empty quotes
-func! s:EmptyStrings(text)
-    return substitute(a:text, '"[^"]*"', '""', 'g')
-endfunc
-
-" Remove block comments
-func! s:RemoveBlockComments(text)
-    return substitute(a:text, '\M/*\_.\{-}*/', '', 'g')
+" Empty strings and remove block/line comments.
+" Warning: Unclosed strings will result in a weird behaviour!
+"
+" @param lines text lines as output by JoinBackslash()
+" @return a single string
+"
+func! s:CommentsAndStrings(lines)
+    " Search for strings and line comments not inside a block comment,
+    " with strings not in an include statement, and delete them
+    call map(a:lines, 'substitute(v:val, "\\v((/\\*.*)@<!|(/\\*.{-}\\*/.*)@<=)((#include\\s+)@<!\"\\zs.{-}\\ze\"|//.*)", "", "g")')
+    " Delete block comments after concatenating lines
+    return substitute(join(a:lines,' '), '\M/*\.\{-}*/', '', 'g')
 endfunc
 
 
