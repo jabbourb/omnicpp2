@@ -9,9 +9,9 @@
 "
 " The parsed code is sanitized first, and all sub-blocks (that do not
 " encompass the cursor) are skipped. Since all lines are concatenated,
-" regexes cannot use the '$' character anymore. Sanitizing the code
-" before matching the regexes allows us to not worry about comments and
-" the like inside a regexp.
+" regexes cannot use the '^' and '$' characters anymore. Sanitizing the
+" code before matching the regexes allows us to not worry about comments
+" and the like inside a regexp.
 "
 " @param regex the regex used for finding matches
 " @return list of matched strings
@@ -41,7 +41,7 @@ function! omnicpp#scope#MatchGlobal(regex)
     let origPos = getpos('.')
     " Get out of local block, if any
     call searchpair('{', '', '}', 'brW', 'omnicpp#utils#IsCursorInCommentOrString()')
-    let sanitized = s:SanitizeJump([1,1])
+    let sanitized = s:SanitizeJump([1,0])
     call setpos('.', origPos)
     return s:SequentialMatch(sanitized, a:regex)
 endfunc
@@ -50,8 +50,8 @@ endfunc
 " Extract the code from the current position up to a given position,
 " jumping over sub-blocks and removing comments.
 "
-" @param stopPos the upper limit for the text to extract (the lower
-" being the current cursor position)
+" @param stopPos the upper limit for the text to extract, exclusive (the
+" lower being the current cursor position)
 " @return a string built by concatenating useful lines
 "
 func! s:SanitizeJump(stopPos)

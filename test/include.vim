@@ -6,7 +6,6 @@ let b:testFile = "include.cpp"
 func! g:TestLocalIncludes()
     let includes = omnicpp#include#LocalIncludes()
     call sort(includes)
-    " Fails; see Bug#2
     call g:Assert(includes == ['"l1.h"', '"l3.h"', '<l2.h>'])
 endfunc
 

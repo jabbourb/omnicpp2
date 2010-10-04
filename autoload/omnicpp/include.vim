@@ -2,7 +2,7 @@
 " Description: Routines for resolving and working with include files
 
 " The regexp used to match includes
-let s:reInclude = '\C^\s*#\s*include\s*\zs[<"].\{1,}[>"]'
+let s:reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
 
 " List #include directives in the current local scope up to the cursor's
 " position.

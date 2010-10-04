@@ -6,8 +6,7 @@
 //#include "hello"
 #include "l3.h" //hi
 /*
-#include "l4.h"
-*/
+#include "l4.h"//*/
 
 //*LocalIncludes*
 }
@@ -16,6 +15,7 @@
 
 //*GlobalIncludes*
 
+"hello"; //hi
 #include "include.h"
 #include "unknown.h"
 //*AllIncludes*
