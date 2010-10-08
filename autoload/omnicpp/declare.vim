@@ -3,30 +3,35 @@
 
 "{{{1 Regexes
 
-" Valid keywords
-let s:reSpecifier = '\V\C\(\<'.join(g:omnicpp#syntax#KeySpecifier, '\>\|\<').'\v>)'
-" We need this because adding ((...)\_s*)* throws a *E51* "too many ("
-let s:reSpecifierPre = '\V\C\(\_s\+\<'.join(g:omnicpp#syntax#KeySpecifier, '\>\|\_s\+\<').'\v>)'
-let s:reSpecifierPost = '\V\C\(\<'.join(g:omnicpp#syntax#KeySpecifier, '\>\_s\+\|\<').'\v>\_s+)'
+"{{{2 Variables
 
-" Valid type identifier
-let s:reId = '\v('.g:omnicpp#syntax#reIdFull.')'
+" Keywords that define a type (int, char...)
+let s:reVarKeyType = '\v<'.join(g:omnicpp#syntax#KeyType, '>|<').'>'
+" Variable type regexp; can be either a keyword type or a custom
+" (eventually qualified) identifer.
+let s:reVarType = '\v\C'.s:reVarKeyType.'|'.g:omnicpp#syntax#reIdFull.'(\_s*::\_s*'.g:omnicpp#syntax#reIdFull.')*'
+" Non-type keywords (specifiers) that can appear in a variable declaration
+let s:reVarKeySpec = '\v<'.join(g:omnicpp#syntax#KeySpecifier, '>|<').'>'
 
 " Master regex (declaration lookup)
+"
 "" Variable name prefix expression
-"" We can assume that \v is always set
-let s:reMasterPre = s:reId.'(\_s*::\_s*'.s:reId.')*'.s:reSpecifierPre.'*\_s*[*&]?\_s*'.s:reSpecifierPost.'*<\V\C'
+"" TODO multiple declarations separated by a comma
+let s:reVarMasterPre = '\('.s:reVarType.')\_s*((\*|\&|'.s:reVarKeySpec.')\_s*)*\V\<'
 "" Variable name suffix expression
-let s:reMasterPost = '\v>\_s*.{-}\ze\_s*[,=;]'
+let s:reVarMasterPost = '\v>(\_s*\[[^]]*\])*\ze\_s*[,=;]'
 
-" Sub regexes
+" Sub regexes, to be matched against the string found using the master
+" regexp
+"
 "" Base type
-let s:reBase = '^'.s:reId.'(\_s*::\_s*'.s:reId.')*'
+let s:reVarSubType = '^'.s:reVarType
 "" Variable is a pointer if match
-let s:rePointer = s:reBase.s:reSpecifierPre.'*\_s*\*\_s*'.s:reSpecifierPost.'*'
+let s:reVarSubPointer = '\*'
 "" Variable is an array if match
-let s:reArray =  '\v\[.{-}\]$'
+let s:reVarSubArray =  '\v\[.{-}\]$'
 
+"{{{2 Functions
 
 "{{{1 Interface
 
@@ -40,8 +45,19 @@ let s:reArray =  '\v\[.{-}\]$'
 "   otherwise
 "   - array: set to 1 if the variable is an array, 0 otherwise
 "
-function! omnicpp#type#LocalType(var)
-    return s:GetTypeFromString(get(omnicpp#scope#MatchLocal(s:reMasterPre.a:var.s:reMasterPost, 1), 0, ''))
+func! omnicpp#declare#LocalType(var)
+    return s:GetTypeFromString(get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), 0, ''))
+endfunc
+
+
+" Search for variables whose name matches a given base and declared in
+" the local scope up to the cursor's position
+"
+" @param base the starting part of the variable's name
+" @return List of matching names
+"
+func! omnicpp#declare#LocalVars(base)
+    return omnicpp#scope#MatchLocal(s:reVarMasterPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
 endfunc
 
 
@@ -53,8 +69,8 @@ endfunc
 "
 " @param, @return see GetLocalType
 "
-function! omnicpp#type#Type(var)
-    let type = omnicpp#type#LocalType(a:var)
+func! omnicpp#declare#Type(var)
+    let type = omnicpp#declare#LocalType(a:var)
     if !empty(type) | return type | endif
 
     " 'using XX::var' where XX::var is a type and var exists as a
@@ -90,21 +106,22 @@ endfunc
 
 " Builds the type object from the declaration string passed to it
 " Returns an empty object if the base type isn't found
-function! s:GetTypeFromString(str)
+func! s:GetTypeFromString(str)
     let type = {'base' : '', 'pointer' : 0, 'array' : 0}
 
-    let type.base = matchstr(a:str, s:reBase)
+    let type.base = matchstr(a:str, s:reVarSubType)
     if empty(type.base) | return {} | endif
 
-    if match(a:str, s:rePointer)>=0 | let type.pointer = 1 | endif
-    if match(a:str, s:reArray)>=0 | let type.array = 1 | endif
+    if match(a:str, s:reVarSubPointer)>=0 | let type.pointer = 1 | endif
+    if match(a:str, s:reVarSubArray)>=0 | let type.array = 1 | endif
 
     return type
 endfunc
 
 " Search tag files for the given qualified variable name, making sure
 " the source file it appears in is visible from the current buffer.
-function! s:TagSearchType(qualifiedName)
+func! s:TagSearchType(qualifiedName)
+    return qualifiedName
 endfunc
 
 " vim: fdm=marker
