@@ -55,16 +55,16 @@ let g:omnicpp#syntax#Operators = sort(g:omnicpp#syntax#OpTiedG + g:omnicpp#synta
 " any aggregated regexp to work properly
 
 " ORing keywords
-let g:omnicpp#syntax#reKeyword = '\V\C\(\<'.join(g:omnicpp#syntax#Keywords, '\>\|\<').'\>\)'
+let g:omnicpp#syntax#reKeyword = '\v\C<'.join(g:omnicpp#syntax#Keywords, '>|<').'>'
 " ORing operators
-let g:omnicpp#syntax#reOperator = '\V\('.join(g:omnicpp#syntax#Operators, '\|').')'
+let g:omnicpp#syntax#reOperator = '\V'.join(g:omnicpp#syntax#Operators, '\|')
 
 " The digits regex first matches against hex numbers, then floating
 " numbers, and finally plain integers
-let g:omnicpp#syntax#reDigit = '\v(-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=))'
+let g:omnicpp#syntax#reDigit = '\v-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
 " Valid C++ identifiers (allows the $ character)
 let g:omnicpp#syntax#reIdSimple = '\v<\h(\w|\d|\$)*>'
 "" Excluding keywords version
-let g:omnicpp#syntax#reIdFull = g:omnicpp#syntax#reKeyword.'\@!\&'.g:omnicpp#syntax#reIdSimple
+let g:omnicpp#syntax#reIdFull = '\v('.g:omnicpp#syntax#reKeyword.')@!'.g:omnicpp#syntax#reIdSimple
 
 " vim: fdm=marker
