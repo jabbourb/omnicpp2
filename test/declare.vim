@@ -20,6 +20,6 @@ endfunc
 func! g:TestLocalVars()
     call g:Assert (omnicpp#declare#LocalVars('root') == ['rootPoint'])
     call g:Assert (omnicpp#declare#LocalVars('i') == ['intPointArr', 'i1'])
-    call g:Assert (omnicpp#declare#LocalVars('b') == ['b1', 'b'])
+    call g:Assert (omnicpp#declare#LocalVars('b') == ['b'])
     call g:Assert (empty(omnicpp#declare#LocalVars('anUnlikelyBase')))
 endfunc

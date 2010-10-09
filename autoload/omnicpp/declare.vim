@@ -15,23 +15,25 @@ let s:reVarKeySpec = '\v<'.join(g:omnicpp#syntax#KeySpecifier, '>|<').'>'
 
 " Master regexp (declaration lookup)
 "
-"" Variable name prefix expression for single declarations or first
-"" element of a declaration sequence
-let s:reVarMasterPre = '\('.s:reVarType.')\_s*((\*|\&|'.s:reVarKeySpec.')\_s*)*\V\<'
-"" Variable name prefix expression for subsequent elements in a
-"" declaration sequence; this is used when the previous regexp fails
-let s:reVarMasterMultiPre = '\('.s:reVarType.')\_[^;]{-},\_s*(\*|\&)=\V\<'
+" Variable name prefix expression. First try to match lone declarations,
+" or first declaration in a sequence; if that fails, try to match
+" subsequent declarations in a sequence (names in a sequence must appear
+" right after a comma, otherwise they might be on the right-hand of an
+" initialization; and we can't ban '=' for sequences, since other
+" variables might have been initialized before)
+let s:reVarMasterPre = '\('.s:reVarType.')\_s*(\_[^,;=]{-}(\*|\&|'.s:reVarKeySpec.')*\_s*|\_[^;]{-},\_s*[*&]=\_s*)\V\<'
 "" Variable name suffix expression
 let s:reVarMasterPost = '\v>(\_s*\[[^]]*\])*\ze\_s*[,=;]'
 
 " Sub regexes, to be matched against the string found using the master
 " regexp
 "
-"" Base type
+" Base type
 let s:reVarSubType = '^'.s:reVarType
-"" Variable is a pointer if match
+" In a sequence, the following is matched against the last declaration
+" Variable is a pointer if match
 let s:reVarSubPointer = '\*'
-"" Variable is an array if match
+" Variable is an array if match
 let s:reVarSubArray =  '\v\[.{-}\]$'
 
 "{{{2 Functions
@@ -49,11 +51,8 @@ let s:reVarSubArray =  '\v\[.{-}\]$'
 "   - array: set to 1 if the variable is an array, 0 otherwise
 "
 func! omnicpp#declare#LocalType(var)
-    let type = get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), 0, '')
-    if empty(type)
-        let type = get(omnicpp#scope#MatchLocal(s:reVarMasterMultiPre.a:var.s:reVarMasterPost), 0, '')
-    endif
-    return s:GetTypeFromString(type)
+    " Last match takes precedence
+    return s:GetTypeFromString(get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), -1, ''))
 endfunc
 
 " Search for variables whose name matches a given base and declared in
@@ -64,8 +63,8 @@ endfunc
 "
 func! omnicpp#declare#LocalVars(base)
     let vars = omnicpp#scope#MatchLocal(s:reVarMasterPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
-    let vars += omnicpp#scope#MatchLocal(s:reVarMasterMultiPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
-    return vars
+    " Filter duplicates
+    return filter(vars, 'count(vars,v:val)==1')
 endfunc
 
 " Look up the type of a variable. Will search in the following order:
