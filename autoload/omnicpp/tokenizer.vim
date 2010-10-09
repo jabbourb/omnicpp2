@@ -52,7 +52,7 @@ function! omnicpp#tokenizer#Tokenize(code)
 
     while 1
         " Skip any white spaces
-        let spaceEnd = matchend(a:code, '\v^\s+', matchStart)
+        let spaceEnd = matchend(a:code, '^\s+', matchStart)
         if spaceEnd != -1
             let matchStart = spaceEnd
         endif
@@ -92,7 +92,7 @@ function! omnicpp#tokenizer#TokenizeCurrentInstruction()
     " Rewind until an instruction delimiter is found or beginning of
     " file is reached, jumping over comments or strings
     while 1
-        let startPos = searchpos('[;{}]\|\%^', 'bW')
+        let startPos = searchpos('[#;{}]\|\%^', 'bW')
         if !omnicpp#utils#IsCursorInCommentOrString() || startPos == [1,1]
             break
         endif
