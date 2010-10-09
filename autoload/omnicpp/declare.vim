@@ -13,11 +13,14 @@ let s:reVarType = '\v\C'.s:reVarKeyType.'|'.g:omnicpp#syntax#reIdFull.'(\_s*::\_
 " Non-type keywords (specifiers) that can appear in a variable declaration
 let s:reVarKeySpec = '\v<'.join(g:omnicpp#syntax#KeySpecifier, '>|<').'>'
 
-" Master regex (declaration lookup)
+" Master regexp (declaration lookup)
 "
-"" Variable name prefix expression
-"" TODO multiple declarations separated by a comma
+"" Variable name prefix expression for single declarations or first
+"" element of a declaration sequence
 let s:reVarMasterPre = '\('.s:reVarType.')\_s*((\*|\&|'.s:reVarKeySpec.')\_s*)*\V\<'
+"" Variable name prefix expression for subsequent elements in a
+"" declaration sequence; this is used when the previous regexp fails
+let s:reVarMasterMultiPre = '\('.s:reVarType.')\_[^;]{-},\_s*(\*|\&)=\V\<'
 "" Variable name suffix expression
 let s:reVarMasterPost = '\v>(\_s*\[[^]]*\])*\ze\_s*[,=;]'
 
@@ -46,9 +49,12 @@ let s:reVarSubArray =  '\v\[.{-}\]$'
 "   - array: set to 1 if the variable is an array, 0 otherwise
 "
 func! omnicpp#declare#LocalType(var)
-    return s:GetTypeFromString(get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), 0, ''))
+    let type = get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), 0, '')
+    if empty(type)
+        let type = get(omnicpp#scope#MatchLocal(s:reVarMasterMultiPre.a:var.s:reVarMasterPost), 0, '')
+    endif
+    return s:GetTypeFromString(type)
 endfunc
-
 
 " Search for variables whose name matches a given base and declared in
 " the local scope up to the cursor's position
@@ -57,9 +63,10 @@ endfunc
 " @return List of matching names
 "
 func! omnicpp#declare#LocalVars(base)
-    return omnicpp#scope#MatchLocal(s:reVarMasterPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
+    let vars = omnicpp#scope#MatchLocal(s:reVarMasterPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
+    let vars += omnicpp#scope#MatchLocal(s:reVarMasterMultiPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
+    return vars
 endfunc
-
 
 " Look up the type of a variable. Will search in the following order:
 " - Local scope
@@ -102,6 +109,7 @@ func! omnicpp#declare#Type(var)
     endfor
 endfunc
 
+
 "{{{1 Auxiliary
 
 " Builds the type object from the declaration string passed to it
@@ -112,8 +120,10 @@ func! s:GetTypeFromString(str)
     let type.base = matchstr(a:str, s:reVarSubType)
     if empty(type.base) | return {} | endif
 
-    if match(a:str, s:reVarSubPointer)>=0 | let type.pointer = 1 | endif
-    if match(a:str, s:reVarSubArray)>=0 | let type.array = 1 | endif
+    " Get only the last declaration, which is the variable we want
+    let single = split(a:str, ',')[-1]
+    if match(single, s:reVarSubPointer)>=0 | let type.pointer = 1 | endif
+    if match(single, s:reVarSubArray)>=0 | let type.array = 1 | endif
 
     return type
 endfunc
