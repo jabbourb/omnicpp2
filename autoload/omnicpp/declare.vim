@@ -73,15 +73,15 @@ endfunc
 " - Class scope
 " - Global scope | Using directives | Global using declaration
 "
-" @param, @return see GetLocalType
+" @param, @return see LocalType
 "
 func! omnicpp#declare#Type(var)
     let type = omnicpp#declare#LocalType(a:var)
     if !empty(type) | return type | endif
 
     " 'using XX::var' where XX::var is a type and var exists as a
-    " variable is usually an error; therefor we assume XX::var to name a
-    " variable.
+    " variable is usually an error; therefore we assume XX::var to name
+    " a variable.
     for dec in omnicpp#ns#LocalUsingDeclarations()
         if split(dec, '::')[-1] == a:var
             return s:TagSearchType(dec)
@@ -102,10 +102,33 @@ func! omnicpp#declare#Type(var)
         endif
     endfor
 
-    for dir in (omnicpp#ns#LocalUsingDirectives() + omnicpp#ns#GetGlobalUsingDirectives())
+    for dir in (omnicpp#ns#LocalUsingDirectives() + omnicpp#ns#GlobalUsingDirectives())
         let type = s:TagSearchType(dir.'::'.a:var)
         if !empty(type) | return type | endif
     endfor
+endfunc
+
+func! omnicpp#declare#Vars(base)
+    " Local variables
+    let vars = omnicpp#declare#LocalVars(a:base)
+
+    " Using declarations
+    for dec in omnicpp#ns#LocalUsingDeclarations() + omnicpp#ns#GlobalUsingDeclarations()
+        let decName = split(dec,'::')[-1]
+        if match(decName, a:base) == 0
+            let vars += [decName]
+        endif
+    endfor
+
+    let tagQuery = '\V\^\('.join(omnicpp#ns#CurrentContexts()
+                \ + omnicpp#ns#LocalUsingDirectives()
+                \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)::'.a:base
+    for var in taglist(tagQuery)
+        let vars += [split(var.name, '::')[-1]]
+    endfor
+
+    call filter(vars, 'count(vars,v:val)==1')
+    return vars
 endfunc
 
 
@@ -125,12 +148,6 @@ func! s:GetTypeFromString(str)
     if match(single, s:reVarSubArray)>=0 | let type.array = 1 | endif
 
     return type
-endfunc
-
-" Search tag files for the given qualified variable name, making sure
-" the source file it appears in is visible from the current buffer.
-func! s:TagSearchType(qualifiedName)
-    return qualifiedName
 endfunc
 
 " vim: fdm=marker

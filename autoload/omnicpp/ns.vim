@@ -31,15 +31,15 @@ endfunc
 
 "{{{1 Functions
 
-" Find the full scope visible at the cursor position; this includes
-" any namespace we are in, as well as containing classes.
+" When inside a namespace or class definition, or when implementing a
+" method using its full qualified name, list all contexts visible from
+" the current local scope
 "
-" @return List of strings, each representing a namespace or class, each
-" entry encompassing the ones that follow
+" @return List of namespaces
 "
-func! omnicpp#ns#CurrentNameScope()
+func! omnicpp#ns#CurrentContexts()
     let origPos = getpos('.')
-    let namescope = []
+    let singles = []
 
     while searchpair('{','','}','bW','omnicpp#utils#IsCursorInCommentOrString()')
         let instruct = omnicpp#utils#ExtractInstruction()
@@ -47,14 +47,14 @@ func! omnicpp#ns#CurrentNameScope()
         " Explicit namespace directive
         let ns = matchstr(instruct, '\v<namespace>\_s+\zs'.g:omnicpp#syntax#reIdSimple.'\ze\_s*$')
         if !empty(ns)
-            let namescope = [ns] + namescope
+            let singles = [ns] + singles
             continue
         endif
 
         " Class declaration
         let cls = matchstr(instruct, '\v<class>\_s+\zs'.g:omnicpp#syntax#reIdSimple.'\ze\_s*(:|$)')
         if !empty(cls)
-            let namescope = [cls] + namescope
+            let singles = [cls] + singles
             continue
         endif
 
@@ -64,14 +64,19 @@ func! omnicpp#ns#CurrentNameScope()
         if endPos >= 0
             " We only check for compound names (:: separated) and
             " skip plain ones (and keywords btw)
-            let namescope = split(substitute(matchstr(instruct[:endPos],
+            let singles = split(substitute(matchstr(instruct[:endPos],
                         \ '\('.g:omnicpp#syntax#reIdSimple.'\_s*::\_s*)+\ze'.g:omnicpp#syntax#reIdSimple.'\_s*$'), '\s\+', '', 'g'),
-                        \ '::') + namescope
+                        \ '::') + singles
         endif
     endwhile
 
     call setpos('.', origPos)
-    return namescope
+
+    let contexts = []
+    for idx in range(len(singles))
+        let contexts += [join(singles[:idx], '::')]
+    endfor
+    return contexts
 endfunc
 
 " vim: fdm=marker
