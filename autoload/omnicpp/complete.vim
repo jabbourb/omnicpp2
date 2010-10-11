@@ -4,6 +4,7 @@ function! omnicpp#complete#Main(findstart, base)
         " We need to set s:mayComplete to 1 if completion is possible
         " for the second call
         if !omnicpp#utils#IsCursorInCommentOrString(1)
+            let s:tokens = omnicpp#tokenizer#TokenizeInstruction()
             let start = s:FindStartOfCompletion()
             if start != -1
                 let s:mayComplete = 1
@@ -20,25 +21,22 @@ function! omnicpp#complete#Main(findstart, base)
         return []
     endif
 
-    return [a:base]
+    return omnicpp#declare#Vars(a:base)
 endfunc
 
 
 " Used in the first invocation of Main() to find the base start col
 "
-" @return the base start col, or -1 if we no completion is possible
+" @return the base start col, or -1 if no completion is possible
 "
 function! s:FindStartOfCompletion()
-    let tokens = omnicpp#tokenizer#TokenizeCurrentInstruction()
-
-    if !empty(tokens)
-        if index(['keyword', 'identifier'], tokens[-1].type) >= 0
-            return col('.') - len(tokens[-1].text) -1
-        elseif tokens[-1].type == 'operator'
+    if !empty(s:tokens)
+        if index(['keyword', 'identifier'], s:tokens[-1].type) >= 0
+            return col('.') -1 -len(s:tokens[-1].text)
+        elseif s:tokens[-1].type == 'operator'
             return col('.') -1
         endif
     endif
 
     return -1
 endfunc
-
