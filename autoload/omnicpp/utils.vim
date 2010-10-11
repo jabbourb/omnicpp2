@@ -88,6 +88,14 @@ func! omnicpp#utils#IsCursorInCommentOrString(...)
     return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
 endfunc
 
+func! omnicpp#utils#VGrep(file, regex)
+    let matches = []
+    exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
+    for line in getloclist(0)
+        let matches += [matchstr(line.text, a:regex)]
+    endfor
+    return matches
+endfunc
 
 " Concatenate lines ending with a backslash
 func! s:JoinBackslash(lines)
