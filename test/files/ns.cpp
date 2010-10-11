@@ -38,3 +38,32 @@ using g1
     ::c2;
 
 //*GlobalUsing*
+
+
+namespace n1 {
+    namespace n2 {
+        class A : BaseApplication {
+            void f();
+            void g();
+//*CurrentNS1*
+        };
+        void h();
+        int i;
+    }
+}
+
+namespace n1 {
+    namespace n2 {
+        void A::f
+          () {
+//*CurrentNS2*
+        }
+    void h() {
+//*CurrentNS3*
+    }
+    }
+    void n2::A::g(){
+//*CurrentNS4*
+    }
+}
+//*CurrentNS5*
