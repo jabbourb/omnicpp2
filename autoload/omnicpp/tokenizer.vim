@@ -32,7 +32,7 @@ let s:reTokenList = []
 for type in s:TypeRegex
     call add(s:reTokenList, type.regex)
 endfor
-let s:reToken = '\v^('.join(s:reTokenList,'\v)|(').'\v)'
+let s:reToken = '\v^'.join(s:reTokenList,'\v|^')
 
 
 "{{{1 Methods
@@ -52,7 +52,7 @@ function! omnicpp#tokenizer#Tokenize(code)
 
     while 1
         " Skip any white spaces
-        let spaceEnd = matchend(a:code, '^\s+', matchStart)
+        let spaceEnd = matchend(a:code, '^\s\+', matchStart)
         if spaceEnd != -1
             let matchStart = spaceEnd
         endif
@@ -87,18 +87,8 @@ endfunc
 "
 " @return list of tokens
 "
-function! omnicpp#tokenizer#TokenizeCurrentInstruction()
-    let origPos = getpos('.')
-    " Rewind until an instruction delimiter is found or beginning of
-    " file is reached, jumping over comments or strings
-    while 1
-        let startPos = searchpos('[#;{}]\|\%^', 'bW')
-        if !omnicpp#utils#IsCursorInCommentOrString() || startPos == [1,1]
-            break
-        endif
-    endwhile
-    call setpos('.', origPos)
-    return omnicpp#tokenizer#Tokenize(omnicpp#utils#ExtractCode(startPos, origPos[1:2], 1))
+function! omnicpp#tokenizer#TokenizeInstruction()
+    return omnicpp#tokenizer#Tokenize(omnicpp#utils#ExtractInstruction())
 endfunc
 
 " vim: fdm=marker
