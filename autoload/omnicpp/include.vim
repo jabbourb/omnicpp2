@@ -31,7 +31,8 @@ func! omnicpp#include#AllIncludes()
     let includes = omnicpp#include#LocalIncludes()
     let includes += omnicpp#include#GlobalIncludes()
 
-    " Add current filename to parsed files
+    " Add current filename to parsed files in case it is included in one
+    " of the headers
     let visited = [expand('%:p')]
 
     " Resolve all includes
@@ -53,6 +54,8 @@ func! omnicpp#include#AllIncludes()
         let includes += found
     endwhile
 
+    " Remove current buffer
+    call remove(visited, 0)
     return visited
 endfunc
 
