@@ -1,5 +1,7 @@
 //Test data for ns.vim
 
+#include "ns.h"
+
 using namespace g1;
 
 using g1

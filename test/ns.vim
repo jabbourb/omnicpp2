@@ -13,28 +13,28 @@ endfunc
 
 func! g:TestGlobalUsing()
     let declarations = omnicpp#ns#GlobalUsingDeclarations()
-    call g:Assert(declarations==['g1::c1', 'g1::g2::c2'])
+    call g:Assert(declarations==['g1::c1', 'g1::g2::c2', 'std::vector'])
 
     let directives = omnicpp#ns#GlobalUsingDirectives()
-    call g:Assert(directives==['g1', 'g1::g2'])
+    call g:Assert(directives==['g1', 'g1::g2', 'std'])
 endfunc
 
 func! g:TestCurrentNS1()
-    call g:Assert (omnicpp#ns#CurrentNameScope() == ['n1', 'n2', 'A'])
+    call g:Assert (omnicpp#ns#CurrentContexts() == ['n1', 'n1::n2', 'n1::n2::A'])
 endfunc
 
 func! g:TestCurrentNS2()
-    call g:Assert (omnicpp#ns#CurrentNameScope() == ['n1', 'n2', 'A'])
+    call g:Assert (omnicpp#ns#CurrentContexts() == ['n1', 'n1::n2', 'n1::n2::A'])
 endfunc
 
 func! g:TestCurrentNS3()
-    call g:Assert (omnicpp#ns#CurrentNameScope() == ['n1', 'n2'])
+    call g:Assert (omnicpp#ns#CurrentContexts() == ['n1', 'n1::n2'])
 endfunc
 
 func! g:TestCurrentNS4()
-    call g:Assert (omnicpp#ns#CurrentNameScope() == ['n1', 'n2', 'A'])
+    call g:Assert (omnicpp#ns#CurrentContexts() == ['n1', 'n1::n2', 'n1::n2::A'])
 endfunc
 
 func! g:TestCurrentNS5()
-    call g:Assert (empty(omnicpp#ns#CurrentNameScope()))
+    call g:Assert (empty(omnicpp#ns#CurrentContexts()))
 endfunc

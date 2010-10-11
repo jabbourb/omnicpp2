@@ -2,7 +2,7 @@
 " Description: Functions for dealing with namespace resolution
 
 
-"{{{1 Parameters =======================================================
+"{{{1 Parameters
 
 " The following regexes extract namespaces as XX::YY
 
@@ -11,25 +11,24 @@ let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
 " Regex used for matching using-directives
 let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\ze\s*;'
 
-"{{{1 Interface wrappers ===============================================
+"{{{1 Functions
 
 function! omnicpp#ns#LocalUsingDeclarations()
-    return map(omnicpp#scope#MatchLocal(s:reDeclaration), 'substitute(v:val, " ", "", "g")')
+    return map(omnicpp#scope#MatchLocal(s:reDeclaration), 'substitute(v:val,"\\s\\+","","g")')
 endfunc
 
 function! omnicpp#ns#LocalUsingDirectives()
-    return map(omnicpp#scope#MatchLocal(s:reDirective), 'substitute(v:val, " ", "", "g")')
+    return map(omnicpp#scope#MatchLocal(s:reDirective), 'substitute(v:val,"\\s\\+","","g")')
 endfunc
 
 function! omnicpp#ns#GlobalUsingDeclarations()
-    return map(omnicpp#scope#MatchGlobal(s:reDeclaration), 'substitute(v:val, " ", "", "g")')
+    return s:GlobalUsing(s:reDeclaration)
 endfunc
 
 function! omnicpp#ns#GlobalUsingDirectives()
-    return map(omnicpp#scope#MatchGlobal(s:reDirective), 'substitute(v:val, " ", "", "g")')
+    return s:GlobalUsing(s:reDirective)
 endfunc
 
-"{{{1 Functions
 
 " When inside a namespace or class definition, or when implementing a
 " method using its full qualified name, list all contexts visible from
@@ -77,6 +76,18 @@ func! omnicpp#ns#CurrentContexts()
         let contexts += [join(singles[:idx], '::')]
     endfor
     return contexts
+endfunc
+
+
+"{{{1 Auxiliary
+
+func! s:GlobalUsing(regex)
+    let using = omnicpp#scope#MatchGlobal(a:regex)
+    for inc in omnicpp#include#AllIncludes()
+        let using += omnicpp#utils#VGrep(inc, a:regex)
+    endfor
+    call map(using, 'substitute(v:val,"\\s\\+","","g")')
+    return filter(using, 'count(using,v:val)==1')
 endfunc
 
 " vim: fdm=marker
