@@ -13,7 +13,7 @@
 "
 " @return the code string between startPos and endPos
 "
-function! omnicpp#utils#ExtractCode(startPos, endPos, ...)
+func! omnicpp#utils#ExtractCode(startPos, endPos, ...)
     if a:0 && a:1
         let startPos = a:startPos[1]
         let endPos = a:endPos[1]-1
@@ -36,6 +36,58 @@ function! omnicpp#utils#ExtractCode(startPos, endPos, ...)
 
     return s:CommentsAndStrings(s:JoinBackslash(lines))
 endfunc
+
+" Extract the current instruction up to the cursor's position
+" (excluded). Instruction boundaries matching isn't perfect, and will
+" sometimes extract more code than intended.
+"
+" This is a convenience wrapper around ExtractCode().
+"
+func! omnicpp#utils#ExtractInstruction()
+    let origPos = getpos('.')
+    while searchpos('\v[;{}#]|%^', 'bW') != [1,1]
+        if !omnicpp#utils#IsCursorInCommentOrString() | break | endif
+    endwhile
+    let code = omnicpp#utils#ExtractCode (getpos('.')[1:2], origPos[1:2], 1)
+    call setpos('.', origPos)
+    return code
+endfunc
+
+" Scan a string backwards, and find the opening element of an
+" (open,close) pair encompassing the end of the string. This is similar
+" to searchpair() (but for strings).
+"
+" @param string the string to scan
+" @param open the opening character
+" @param close the closing character
+"
+" @return the index of the opening character, -1 if none
+"
+func! omnicpp#utils#SearchPairBack(string, open, close)
+    let counter = 0
+    for idx in reverse(range(len(a:string)))
+        if a:string[idx] == a:open
+            if counter==0
+                return idx
+            else
+                let counter -= 1
+            endif
+        elseif a:string[idx] == a:close
+            let counter += 1
+        endif
+    endfor
+    return -1
+endfunc
+
+" Check if the cursor is in a comment or string
+"
+" @param ... if an non-null argument is given, move the cursor one
+" position backward
+func! omnicpp#utils#IsCursorInCommentOrString(...)
+    let col = a:0 && a:1 ? col('.')-1 : col('.')
+    return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
+endfunc
+
 
 " Concatenate lines ending with a backslash
 func! s:JoinBackslash(lines)
@@ -97,14 +149,4 @@ func! s:CommentsAndStrings(lines)
     endfor
 
     return sanitized
-endfunc
-
-
-" Check if the cursor is in a comment or string
-"
-" @param ... if an non-null argument is given, move the cursor one
-" position backward
-function! omnicpp#utils#IsCursorInCommentOrString(...)
-    let col = a:0 && a:1 ? col('.')-1 : col('.')
-    return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
 endfunc
