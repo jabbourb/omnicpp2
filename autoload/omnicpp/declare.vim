@@ -21,7 +21,7 @@ let s:reVarKeySpec = '\v<'.join(g:omnicpp#syntax#KeySpecifier, '>|<').'>'
 " right after a comma, otherwise they might be on the right-hand of an
 " initialization; and we can't ban '=' for sequences, since other
 " variables might have been initialized before)
-let s:reVarMasterPre = '\('.s:reVarType.')\_s*(\_[^,;=]{-}(\*|\&|'.s:reVarKeySpec.')*\_s*|\_[^;]{-},\_s*[*&]=\_s*)\V\<'
+let s:reVarMasterPre = '\('.s:reVarType.')\_s*(\_[^:,;=]{-}(\*|\&|'.s:reVarKeySpec.')*\_s*|\_[^;]{-},\_s*[*&]=\_s*)\V\<'
 "" Variable name suffix expression
 let s:reVarMasterPost = '\v>(\_s*\[[^]]*\])*\ze\_s*[,=;]'
 
@@ -108,6 +108,9 @@ func! omnicpp#declare#Type(var)
     endfor
 endfunc
 
+
+" Return all the variables names starting with a given base and visible
+" at the cursor's position.
 func! omnicpp#declare#Vars(base)
     " Local variables
     let vars = omnicpp#declare#LocalVars(a:base)
@@ -120,11 +123,32 @@ func! omnicpp#declare#Vars(base)
         endif
     endfor
 
-    let tagQuery = '\V\^\('.join(omnicpp#ns#CurrentContexts()
+    let incs = omnicpp#include#AllIncludes()
+
+    " Using directives and any context visible at the cursor's position.
+    " We want the variable name to be the last part of the full
+    " qualified name.
+    let tagQuery = '\V\C\^\('.join(omnicpp#ns#CurrentContexts()
                 \ + omnicpp#ns#LocalUsingDirectives()
-                \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)::'.a:base
+                \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)::'.a:base.'\[^:]\*\$'
     for var in taglist(tagQuery)
-        let vars += [split(var.name, '::')[-1]]
+        " Relative paths in tag files are resolved based on the
+        " current working directory
+        let filename = s:ResolvePath(var.filename)
+        " Only match in files visible from the current buffer
+        if filename == expand('%:p') || index(incs, filename) >= 0
+            let vars += [split(var.name, '::')[-1]]
+        endif
+    endfor
+
+    "Global context
+    for var in taglist('\V\C\^'.a:base.'\[^:]\*\$')
+        let filename = s:ResolvePath(var.filename)
+        " Check the match isn't inside a namespace or class (duplicates)
+        if (filename == expand('%:p') || index(incs, filename) >= 0)
+                    \ && !(has_key(var, 'namespace') || has_key(var, 'class'))
+            let vars += [var.name]
+        endif
     endfor
 
     call filter(vars, 'count(vars,v:val)==1')
@@ -148,6 +172,11 @@ func! s:GetTypeFromString(str)
     if match(single, s:reVarSubArray)>=0 | let type.array = 1 | endif
 
     return type
+endfunc
+
+" Resolve a relative path by rooting it at the current directory
+func! s:ResolvePath(path)
+    return a:path[0] == '/' ? a:path : getcwd().'/'.a:path
 endfunc
 
 " vim: fdm=marker
