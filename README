@@ -1,0 +1,17 @@
+This is a complete rewrite of the original OmniCpp plugin for Vimx; it
+aims at providing Omni completion for C/C++ files. It is still in early
+alpha state, with new features implemented by the day.
+
+Features
+========
+- Simple and qualified variable name lookup in all contexts made
+available at the cursor's position
+- Parse includes recursively, resolving names using the &path variable
+- Tokenize code, which makes it tolerant to newlines and comments
+- Cache file access to speed up subsequent calls
+- Test suites for most modules
+
+Caveats
+=======
+- Although file access is cached, the first call might take quite some
+time to complete, especially for includes in large projects
