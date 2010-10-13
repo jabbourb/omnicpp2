@@ -3,6 +3,9 @@
 using n1::c1;
 
 namespace n1 {
+    namespace n3 {
+        int c8;
+    }
     char c5;
 }
 
@@ -18,6 +21,8 @@ int c2;
     int &c4[0];
 
     namespace n1 {
+        int any
 //*Vars*
+//*Contexts*
     }
 }

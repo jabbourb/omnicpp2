@@ -76,9 +76,9 @@ func! omnicpp#complete#Contexts(base)
 
     "Global context
     for match in taglist('\V\C\^'.a:base.'\[^:]\*\$')
+        " Check the match isn't inside a namespace or class (duplicates)
         if s:IsVisible(match.filename)
-            " Check the match isn't inside a namespace or class (duplicates)
-                        \ && !(has_key(match, 'namespace') || has_key(match, 'class'))
+                    \ && !(has_key(match, 'namespace') || has_key(match, 'class'))
             let matches += [match.name]
         endif
     endfor
