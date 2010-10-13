@@ -1,8 +1,34 @@
 " Author: Bassam JABBOUR
 " Description: Routines for resolving and working with include files
 
+"{{{1 Regexes
+
 " The regexp used to match includes
 let s:reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
+
+"{{{1 Cache
+
+" The cache stores, for every parsed path, the time of last modification
+" and the list of includes found
+let s:cache = {}
+
+" Add a parsed file to the cache, making a deep copy of the includes
+" list
+func! s:PutCache(path, includes)
+    let s:cache[a:path] = {'includes': deepcopy(a:includes), 'ftime': getftime(a:path)}
+endfunc
+
+" Retrieve an includes list from the cache (deep copy)
+func! s:GetCache(path)
+    return deepcopy(s:cache[a:path].includes)
+endfunc
+
+" Check if a file isn't in the cache, or otherwise needs to be reparsed
+func! s:HasCached(path)
+    return has_key(s:cache, a:path) && s:cache[a:path].ftime == getftime(a:path)
+endfunc
+
+"{{{1 Functions
 
 " List #include directives in the current local scope up to the cursor's
 " position.
@@ -27,17 +53,25 @@ endfunc
 " @return list of filenames, including the current buffer
 "
 func! omnicpp#include#AllIncludes()
-    " The includes to be parsed
-    let includes = omnicpp#include#LocalIncludes()
-    let includes += omnicpp#include#GlobalIncludes()
+    let curBuf = expand('%:p')
+
+    if !s:HasCached(curBuf)
+        " The includes to be parsed
+        let includes = omnicpp#include#LocalIncludes()
+        let includes += omnicpp#include#GlobalIncludes()
+
+        " Resolve all includes
+        let pwd = expand('%:p:h')
+        call s:ResolveIncludes(includes, pwd)
+
+        call s:PutCache(curBuf, includes)
+    else
+        let includes = s:GetCache(curBuf)
+    endif
 
     " Add current filename to parsed files in case it is included in one
     " of the headers
-    let visited = [expand('%:p')]
-
-    " Resolve all includes
-    let pwd = expand('%:p:h')
-    call s:ResolveIncludes(includes, pwd)
+    let visited = [curBuf]
 
     while !empty(includes)
         let inc = remove(includes,-1)
@@ -47,11 +81,17 @@ func! omnicpp#include#AllIncludes()
         endif
         call add(visited, inc)
 
-        let found = s:ParseFile(inc)
-        let pwd = '/'.join(split(inc,'/')[:-2],'/')
-        call s:ResolveIncludes(found, pwd)
-        " It is ok to have duplicates, only the first one will be parsed
-        let includes += found
+        if !s:HasCached(inc)
+            let found = s:ParseFile(inc)
+            let pwd = '/'.join(split(inc,'/')[:-2],'/')
+            call s:ResolveIncludes(found, pwd)
+
+            " Duplicates?
+            call s:PutCache(inc, found)
+            let includes += found
+        else
+            let includes += s:GetCache(inc)
+        endif
     endwhile
 
     " Remove current buffer
@@ -59,6 +99,7 @@ func! omnicpp#include#AllIncludes()
     return visited
 endfunc
 
+"{{{1 Auxiliary
 
 " Resolve the filename referenced by an include directive by first
 " searching the current directory (for quoted includes), then the &path
@@ -116,3 +157,5 @@ func! s:ParseFile(file)
     endfor
     return includes
 endfunc
+
+" vim: fdm=marker
