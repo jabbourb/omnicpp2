@@ -22,7 +22,18 @@ function! omnicpp#complete#Main(findstart, base)
         return []
     endif
 
-    return omnicpp#complete#Vars(a:base)
+    " Cache includes for all subsequent operations
+    let s:includes = omnicpp#include#AllIncludes()
+
+    if !empty(s:tokens) && s:tokens[-1].text == '::'
+        let qualified = ''
+        while !empty(s:tokens) && (s:tokens[-1].text == '::' || s:tokens[-1].type == 'identifier')
+            let qualified = remove(s:tokens, -1).text . qualified
+        endwhile
+        return map(omnicpp#complete#Contexts(qualified.a:base), 'split(v:val,"::")[-1]')
+    else
+        return omnicpp#complete#Vars(a:base)
+    endif
 endfunc
 
 "{{{1 Specific routines
@@ -41,37 +52,40 @@ func! omnicpp#complete#Vars(base)
         endif
     endfor
 
-    let incs = omnicpp#include#AllIncludes()
+    let vars += omnicpp#complete#Contexts(a:base)
 
+    call filter(vars, 'count(vars,v:val)==1')
+    return vars
+endfunc
+
+" Search for names starting with a given base in any base classes,
+" namespaces or global contexts visible at the cursor's position
+func! omnicpp#complete#Contexts(base)
+    let matches = []
     " Using directives and any context visible at the cursor's position.
     " We want the variable name to be the last part of the full
     " qualified name.
     let tagQuery = '\V\C\^\('.join(omnicpp#ns#CurrentContexts()
                 \ + omnicpp#ns#LocalUsingDirectives()
                 \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)::'.a:base.'\[^:]\*\$'
-    for var in taglist(tagQuery)
-        " Relative paths in tag files are resolved based on the
-        " current working directory
-        let filename = s:ResolvePath(var.filename)
-        " Only match in files visible from the current buffer
-        if filename == expand('%:p') || index(incs, filename) >= 0
-            let vars += [split(var.name, '::')[-1]]
+    for match in taglist(tagQuery)
+        if s:IsVisible(match.filename)
+            let matches += [split(match.name, '::')[-1]]
         endif
     endfor
 
     "Global context
-    for var in taglist('\V\C\^'.a:base.'\[^:]\*\$')
-        let filename = s:ResolvePath(var.filename)
-        " Check the match isn't inside a namespace or class (duplicates)
-        if (filename == expand('%:p') || index(incs, filename) >= 0)
-                    \ && !(has_key(var, 'namespace') || has_key(var, 'class'))
-            let vars += [var.name]
+    for match in taglist('\V\C\^'.a:base.'\[^:]\*\$')
+        if s:IsVisible(match.filename)
+            " Check the match isn't inside a namespace or class (duplicates)
+                        \ && !(has_key(match, 'namespace') || has_key(match, 'class'))
+            let matches += [match.name]
         endif
     endfor
 
-    call filter(vars, 'count(vars,v:val)==1')
-    return vars
+    return matches
 endfunc
+
 
 "{{{1 Auxiliary
 
@@ -80,20 +94,25 @@ endfunc
 " @return the base start col, or -1 if no completion is possible
 "
 function! s:FindStartOfCompletion()
+    let begin = -1
     if !empty(s:tokens)
         if index(['keyword', 'identifier'], s:tokens[-1].type) >= 0
-            return col('.') -1 -len(s:tokens[-1].text)
+            let begin = col('.') -1 -len(s:tokens[-1].text)
+            " The last token isn't used anymore
+            call remove(s:tokens, -1)
         elseif s:tokens[-1].type == 'operator'
-            return col('.') -1
+            let begin = col('.') -1
         endif
     endif
 
-    return -1
+    return begin
 endfunc
 
-" Resolve a relative path by rooting it at the current directory
-func! s:ResolvePath(path)
-    return a:path[0] == '/' ? a:path : getcwd().'/'.a:path
+func! s:IsVisible(path)
+    " Relative paths in tag files are resolved based on the current
+    " working directory
+    let path = a:path[0] == '/' ? a:path : getcwd().'/'.a:path
+    return path == expand('%:p') || index(s:includes, path) >= 0
 endfunc
 
 " vim: fdm=marker
