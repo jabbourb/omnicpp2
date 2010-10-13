@@ -1,6 +1,9 @@
-This is a complete rewrite of the original OmniCpp plugin for Vimx; it
-aims at providing Omni completion for C/C++ files. It is still in early
-alpha state, with new features implemented by the day.
+This is a complete rewrite of the original OmniCpp plugin for Vim. It
+aims at providing Omni completion for C/C++ files as would any
+full-fledged IDE.
+
+**Warning:** The plugin is still in early alpha state. Although features
+are implemented by the day, a lot of functionality is still missing.
 
 Features
 ========
