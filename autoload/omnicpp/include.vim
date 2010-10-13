@@ -1,32 +1,13 @@
 " Author: Bassam JABBOUR
 " Description: Routines for resolving and working with include files
 
-"{{{1 Regexes
+"{{{1 Data
 
 " The regexp used to match includes
 let s:reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
 
-"{{{1 Cache
-
-" The cache stores, for every parsed path, the time of last modification
-" and the list of includes found
-let s:cache = {}
-
-" Add a parsed file to the cache, making a deep copy of the includes
-" list
-func! s:PutCache(path, includes)
-    let s:cache[a:path] = {'includes': deepcopy(a:includes), 'ftime': getftime(a:path)}
-endfunc
-
-" Retrieve an includes list from the cache (deep copy)
-func! s:GetCache(path)
-    return deepcopy(s:cache[a:path].includes)
-endfunc
-
-" Check if a file isn't in the cache, or otherwise needs to be reparsed
-func! s:HasCached(path)
-    return has_key(s:cache, a:path) && s:cache[a:path].ftime == getftime(a:path)
-endfunc
+" Cache, for every parsed file, the list of includes found
+let s:cache = omnicpp#cache#Create()
 
 "{{{1 Functions
 
@@ -55,7 +36,7 @@ endfunc
 func! omnicpp#include#AllIncludes()
     let curBuf = expand('%:p')
 
-    if !s:HasCached(curBuf)
+    if !s:cache.has(curBuf)
         " The includes to be parsed
         let includes = omnicpp#include#LocalIncludes()
         let includes += omnicpp#include#GlobalIncludes()
@@ -64,9 +45,9 @@ func! omnicpp#include#AllIncludes()
         let pwd = expand('%:p:h')
         call s:ResolveIncludes(includes, pwd)
 
-        call s:PutCache(curBuf, includes)
+        call s:cache.put(curBuf, includes)
     else
-        let includes = s:GetCache(curBuf)
+        let includes = s:cache.get(curBuf)
     endif
 
     " Add current filename to parsed files in case it is included in one
@@ -81,16 +62,16 @@ func! omnicpp#include#AllIncludes()
         endif
         call add(visited, inc)
 
-        if !s:HasCached(inc)
+        if !s:cache.has(inc)
             let found = s:ParseFile(inc)
             let pwd = '/'.join(split(inc,'/')[:-2],'/')
             call s:ResolveIncludes(found, pwd)
 
             " Duplicates?
-            call s:PutCache(inc, found)
+            call s:cache.put(inc, found)
             let includes += found
         else
-            let includes += s:GetCache(inc)
+            let includes += s:cache.get(inc)
         endif
     endwhile
 
