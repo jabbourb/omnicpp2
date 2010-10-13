@@ -66,7 +66,7 @@ function! omnicpp#tokenizer#Tokenize(code)
         let token = {}
         " Select the first item type whose regexp matches
         for type in s:TypeRegex
-            if tokenText =~ type.regex.'\m$'
+            if tokenText =~ '^'.type.regex.'\m$'
                 let token['type'] = type.name
                 let token['text'] = tokenText
                 break

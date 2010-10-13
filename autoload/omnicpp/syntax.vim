@@ -61,7 +61,7 @@ let g:omnicpp#syntax#reOperator = '\V'.join(g:omnicpp#syntax#Operators, '\|')
 
 " The digits regex first matches against hex numbers, then floating
 " numbers, and finally plain integers
-let g:omnicpp#syntax#reDigit = '\v-=(0x\x+[UL]=|(\d+.\d*|.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
+let g:omnicpp#syntax#reDigit = '\v-=(0x\x+[UL]=|(\d+\.\d*|\.\d+)(e-=\d+)=[fFlL]=|\d+[UL]=)'
 " Valid C++ identifiers (allows the $ character)
 let g:omnicpp#syntax#reIdSimple = '\v<\h(\w|\d|\$)*>'
 "" Excluding keywords version
