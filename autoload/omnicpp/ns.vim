@@ -2,7 +2,7 @@
 " Description: Functions for dealing with namespace resolution
 
 
-"{{{1 Parameters
+"{{{1 Data
 
 " The following regexes extract namespaces as XX::YY
 
@@ -10,6 +10,10 @@
 let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
 " Regex used for matching using-directives
 let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\ze\s*;'
+
+" Cache the list of using directives/declarations
+let s:cacheDir = omnicpp#cache#Create()
+let s:cacheDec = omnicpp#cache#Create()
 
 "{{{1 Functions
 
@@ -22,11 +26,11 @@ function! omnicpp#ns#LocalUsingDirectives()
 endfunc
 
 function! omnicpp#ns#GlobalUsingDeclarations()
-    return s:GlobalUsing(s:reDeclaration)
+    return s:GlobalUsing(s:reDeclaration, s:cacheDec)
 endfunc
 
 function! omnicpp#ns#GlobalUsingDirectives()
-    return s:GlobalUsing(s:reDirective)
+    return s:GlobalUsing(s:reDirective, s:cacheDir)
 endfunc
 
 
@@ -81,10 +85,16 @@ endfunc
 
 "{{{1 Auxiliary
 
-func! s:GlobalUsing(regex)
+func! s:GlobalUsing(regex, cache)
     let using = omnicpp#scope#MatchGlobal(a:regex)
     for inc in omnicpp#include#AllIncludes()
-        let using += omnicpp#utils#VGrep(inc, a:regex)
+        if !a:cache.has(inc)
+            let parse = omnicpp#utils#VGrep(inc, a:regex)
+            let using += parse
+            call a:cache.put(inc, parse)
+        else
+            let using += a:cache.get(inc)
+        endif
     endfor
     call map(using, 'substitute(v:val,"\\s\\+","","g")')
     return filter(using, 'count(using,v:val)==1')
