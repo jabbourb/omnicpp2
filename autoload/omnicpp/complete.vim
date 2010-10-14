@@ -30,7 +30,7 @@ function! omnicpp#complete#Main(findstart, base)
         while !empty(s:tokens) && (s:tokens[-1].text == '::' || s:tokens[-1].type == 'identifier')
             let qualified = remove(s:tokens, -1).text . qualified
         endwhile
-        return map(omnicpp#complete#Contexts(qualified.a:base), 'split(v:val,"::")[-1]')
+        return omnicpp#complete#Contexts(qualified.a:base)
     else
         return omnicpp#complete#Vars(a:base)
     endif
@@ -68,18 +68,20 @@ func! omnicpp#complete#Contexts(base)
     let tagQuery = '\V\C\^\('.join(omnicpp#ns#CurrentContexts()
                 \ + omnicpp#ns#LocalUsingDirectives()
                 \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)::'.a:base.'\[^:]\*\$'
-    for match in taglist(tagQuery)
-        if s:IsVisible(match.filename)
-            let matches += [split(match.name, '::')[-1]]
+    for item in taglist(tagQuery)
+        if s:IsVisible(item.filename)
+            let matches += [split(item.name, '::')[-1]]
         endif
     endfor
 
     "Global context
-    for match in taglist('\V\C\^'.a:base.'\[^:]\*\$')
-        " Check the match isn't inside a namespace or class (duplicates)
-        if s:IsVisible(match.filename)
-                    \ && !(has_key(match, 'namespace') || has_key(match, 'class'))
-            let matches += [match.name]
+    for item in taglist('\V\C\^'.a:base.'\[^:]\*\$')
+        " Check any 'namespace' or 'class' fields are already included
+        " in the item's name
+        if s:IsVisible(item.filename)
+                    \ && match(a:base, get(item,'namespace','')) >= 0
+                    \ && match(a:base, get(item,'class','')) >= 0
+            let matches += [split(item.name, '::')[-1]]
         endif
     endfor
 
