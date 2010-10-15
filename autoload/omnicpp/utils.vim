@@ -83,6 +83,7 @@ endfunc
 "
 " @param ... if an non-null argument is given, move the cursor one
 " position backward
+"
 func! omnicpp#utils#IsCursorInCommentOrString(...)
     let col = a:0 && a:1 ? col('.')-1 : col('.')
     return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
@@ -96,6 +97,28 @@ func! omnicpp#utils#VGrep(file, regex)
     endfor
     return matches
 endfunc
+
+" Given a tag item, resolve the 'filename' attribute by rooting relative
+" paths at the current directory, then check that the tag is visible
+" from the current buffer (using the list of includes given), and that
+" any context attribute (namespace, class...) is actually already
+" included in the item's name (discard names that aren't fully
+" qualified).
+"
+" @param item Tag item to check, as returned by a taglist() query
+" @param includes List of includes visible from the current buffer
+"
+" @return 1 if the tag is valid, 0 otherwise
+"
+func! omnicpp#utils#TagMatch(item, includes)
+    let path = a:item.filename
+    if path[0] != '/' | let path = getcwd().'/'.path | endif
+
+    return (path == expand('%:p') || index(a:includes, path) >= 0)
+                \ && match(a:item.name, get(a:item,'namespace','')) == 0
+                \ && match(a:item.name, get(a:item,'class','')) == 0
+endfunc
+
 
 " Concatenate lines ending with a backslash
 func! s:JoinBackslash(lines)
