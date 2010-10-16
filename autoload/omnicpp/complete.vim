@@ -1,5 +1,3 @@
-"{{{1 Main
-
 function! omnicpp#complete#Main(findstart, base)
     if a:findstart
         " We need to set s:mayComplete to 1 if completion is possible
@@ -36,8 +34,6 @@ function! omnicpp#complete#Main(findstart, base)
     endif
 endfunc
 
-"{{{1 Specific routines
-
 " Return all the variables names starting with a given base and visible
 " at the cursor's position.
 func! omnicpp#complete#Vars(base)
@@ -58,38 +54,23 @@ func! omnicpp#complete#Vars(base)
     return vars
 endfunc
 
-" Search for names starting with a given base in any base classes,
-" namespaces or global contexts visible at the cursor's position
+" Search base classes, current namespaces, imported namespaces and
+" global context visible at the cursor's position
 func! omnicpp#complete#Contexts(base)
     let matches = []
-    " Using directives and any context visible at the cursor's position.
     " We want the variable name to be the last part of the full
     " qualified name.
     let tagQuery = '\V\C\^\('.join(omnicpp#ns#CurrentContexts()
                 \ + omnicpp#ns#LocalUsingDirectives()
-                \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)::'.a:base.'\[^:]\*\$'
+                \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)\='.a:base.'\[^:]\*\$'
     for item in taglist(tagQuery)
-        if s:IsVisible(item.filename)
-            let matches += [split(item.name, '::')[-1]]
-        endif
-    endfor
-
-    "Global context
-    for item in taglist('\V\C\^'.a:base.'\[^:]\*\$')
-        " Check any 'namespace' or 'class' fields are already included
-        " in the item's name
-        if s:IsVisible(item.filename)
-                    \ && match(a:base, get(item,'namespace','')) >= 0
-                    \ && match(a:base, get(item,'class','')) >= 0
+        if omnicpp#utils#TagMatch(item, s:includes)
             let matches += [split(item.name, '::')[-1]]
         endif
     endfor
 
     return matches
 endfunc
-
-
-"{{{1 Auxiliary
 
 " Used in the first invocation of Main() to find the base start col
 "
@@ -109,12 +90,3 @@ function! s:FindStartOfCompletion()
 
     return begin
 endfunc
-
-func! s:IsVisible(path)
-    " Relative paths in tag files are resolved based on the current
-    " working directory
-    let path = a:path[0] == '/' ? a:path : getcwd().'/'.a:path
-    return path == expand('%:p') || index(s:includes, path) >= 0
-endfunc
-
-" vim: fdm=marker
