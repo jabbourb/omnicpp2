@@ -64,7 +64,7 @@ func! omnicpp#complete#Contexts(base)
                 \ + omnicpp#ns#LocalUsingDirectives()
                 \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)\='.a:base.'\[^:]\*\$'
     for item in taglist(tagQuery)
-        if omnicpp#utils#TagMatch(item, s:includes)
+        if omnicpp#tag#Match(item, s:includes)
             let matches += [split(item.name, '::')[-1]]
         endif
     endfor

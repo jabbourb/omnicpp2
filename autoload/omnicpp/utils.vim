@@ -1,5 +1,5 @@
-" Description: Utility functions for OmniCpp2
 " Author: Bassam Jabbour
+" Description: Utility functions for OmniCpp2
 
 
 " Get the code between two buffer positions after sanitizing it.
@@ -98,53 +98,6 @@ func! omnicpp#utils#VGrep(file, regex)
     return matches
 endfunc
 
-" Given a tag item, resolve the 'filename' attribute by rooting relative
-" paths at the current directory, then check that the tag is visible
-" from the current buffer (using the list of includes given)
-"
-" @param item Tag item to check, as returned by a taglist() query
-" @param includes List of includes visible from the current buffer
-"
-" @return 1 if the tag is visible, 0 otherwise
-"
-func! omnicpp#utils#TagVisible(item, includes)
-    let path = a:item.filename
-    if path[0] != '/' | let path = getcwd().'/'.path | endif
-
-    return path == expand('%:p') || index(a:includes, path) >= 0
-endfunc
-
-" Retrieve the context this tag is declared in (the qualified name of
-" this tag's parent).
-"
-" @param see TagVisible()
-" @return the parent context, or an empty string if the tag is declared
-" in global scope
-"
-func! omnicpp#utils#TagContext(item)
-    if has_key(a:item, 'namespace')
-        return a:item.namespace
-    elseif has_key(a:item, 'class')
-        return a:item.class
-    elseif has_key(a:item, 'struct')
-        return a:item.struct
-    else
-        return ''
-    endif
-endfunc
-
-" Check if the tag is visible from the current buffer (see
-" TagVisible()), and that any context attribute (namespace, class...) is
-" actually already included in the item's name (discard names that
-" aren't fully qualified).
-"
-" @param see TagVisible()
-" @return 1 if the tag matches, 0 otherwise
-"
-func! omnicpp#utils#TagMatch(item, includes)
-    return omnicpp#utils#TagVisible(a:item, a:includes)
-                \ && match(a:item.name, omnicpp#utils#TagContext(a:item)) == 0
-endfunc
 
 " Concatenate lines ending with a backslash
 func! s:JoinBackslash(lines)

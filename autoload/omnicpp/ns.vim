@@ -141,9 +141,9 @@ func! omnicpp#ns#BaseClasses(class, gdir, gdec, includes)
             if found | break | endif
 
             for item in taglist('\V\C\^'.ns.inherit['name'].'\$')
-                if omnicpp#utils#TagMatch(item, a:includes)
+                if omnicpp#tag#Match(item, a:includes)
                     call add(qualified, item['name'].'::')
-                    let nest = s:GetNest(omnicpp#utils#TagContext(item))
+                    let nest = s:GetNest(omnicpp#tag#Context(item))
                     for name in split(get(item,'inherits',''),',')
                         call add(inherits, {'name' : name, 'nest' : nest})
                     endfor
@@ -162,9 +162,9 @@ func! omnicpp#ns#BaseClasses(class, gdir, gdec, includes)
             if split(dec,'::')[-1] != inherit['name'] | continue | endif
 
             for item in taglist('\V\C\^'.dec.'\$')
-                if omnicpp#utils#TagMatch(item, a:includes)
+                if omnicpp#tag#Match(item, a:includes)
                     call add(qualified, item['name'].'::')
-                    let nest = s:GetNest(omnicpp#utils#TagContext(item))
+                    let nest = s:GetNest(omnicpp#tag#Context(item))
                     for name in split(get(item,'inherits',''),',')
                         call add(inherits, {'name' : name, 'nest' : nest})
                     endfor
