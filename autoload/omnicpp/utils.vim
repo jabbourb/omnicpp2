@@ -89,6 +89,14 @@ func! omnicpp#utils#IsCursorInCommentOrString(...)
     return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
 endfunc
 
+" Grep a regex from a file into the location list, then extract and
+" return the matching strings.
+"
+" @param file Full path to the file to be parsed
+" @param regex Regexp to be grepped
+"
+" @return List of matches
+"
 func! omnicpp#utils#VGrep(file, regex)
     let matches = []
     exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
