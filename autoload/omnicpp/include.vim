@@ -1,15 +1,14 @@
 " Author: Bassam JABBOUR
 " Description: Routines for resolving and working with include files
 
-"{{{1 Data
+" === Data =============================================================
 
 " The regexp used to match includes
 let s:reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
-
 " Cache, for every parsed file, the list of includes found
 let s:cache = omnicpp#cache#Create()
 
-"{{{1 Functions
+" === Functions ========================================================
 
 " List #include directives in the current local scope up to the cursor's
 " position.
@@ -24,15 +23,23 @@ function! omnicpp#include#GlobalIncludes()
 endfunc
 
 " Grep includes from a file, then resolve them relatively to the file's
-" parent directory (non-recursive).
+" parent directory (non-recursive). If a cache entry is present and
+" up-to-date, it is used instead of parsing the file, else the cache is
+" updated.
 "
 " @param file Full path to the file to be parsed
 " @return List of includes, expanded path
 "
 func! omnicpp#include#Parse(file)
+    if s:cache.has(a:file)
+        return s:cache.get(a:file)
+    endif
+
     let includes = omnicpp#utils#VGrep(a:file, s:reInclude)
     let pwd = '/'.join(split(a:file,'/')[:-2],'/')
     call s:ResolveIncludes(includes, pwd)
+    call s:cache.put(a:file, includes)
+
     return includes
 endfunc
 
@@ -68,18 +75,10 @@ func! omnicpp#include#AllIncludes()
     while !empty(includes)
         let inc = remove(includes,-1)
         " Check for duplicates
-        if index(visited, inc) >= 0
-            continue
-        endif
-        call add(visited, inc)
+        if index(visited, inc) >= 0 | continue | endif
 
-        if s:cache.has(inc)
-            let includes += s:cache.get(inc)
-        else
-            let found = omnicpp#include#Parse(inc)
-            call s:cache.put(inc, found)
-            let includes += found
-        endif
+        call add(visited, inc)
+        let includes += omnicpp#include#Parse(inc)
     endwhile
 
     " Remove current buffer
@@ -87,7 +86,7 @@ func! omnicpp#include#AllIncludes()
     return visited
 endfunc
 
-"{{{1 Auxiliary
+" === Auxiliary ========================================================
 
 " Resolve the filename referenced by an include directive by first
 " searching the current directory (for quoted includes), then the &path
@@ -128,5 +127,3 @@ func! s:ResolveIncludes(includes, currentDir)
     call map(a:includes, 's:ResolveInclude(v:val, a:currentDir)')
     call filter(a:includes, '!empty(v:val)')
 endfunc
-
-" vim: fdm=marker
