@@ -1,10 +1,10 @@
 " Author: Bassam JABBOUR
-" Description: Functions for dealing with namespace resolution
+" Description: Functions for dealing with namespace and context
+" resolution.
 
-"{{{1 Data
+" === Data =============================================================
 
 " The following regexes extract namespaces as XX::YY
-
 " Regex used for matching using-declarations
 let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
 " Regex used for matching using-directives
@@ -14,7 +14,7 @@ let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\ze\s*;'
 let s:cacheDir = omnicpp#cache#Create()
 let s:cacheDec = omnicpp#cache#Create()
 
-"{{{1 Functions
+" === Functions ========================================================
 
 function! omnicpp#ns#LocalUsingDeclarations()
     return map(omnicpp#scope#MatchLocal(s:reDeclaration), 'substitute(v:val,"\\s\\+","","g")')
@@ -94,12 +94,11 @@ func! omnicpp#ns#CurrentContexts()
     let nest = ['']
     " List of contexts made available through inheritance at some level.
     let inherit = []
-    let includes = omnicpp#include#AllIncludes()
 
     for context in contexts
         if context.type
             let context.nest = nest
-            call extend(inherit, omnicpp#ns#BaseClasses(context, gdir, gdec, includes))
+            call extend(inherit, omnicpp#ns#BaseClasses(context, gdir, gdec))
         endif
 
         call insert(nest, nest[0].context['name'].'::')
@@ -121,11 +120,10 @@ endfunc
 "   - ldec : local using declarations
 " @param gdir global using directives
 " @param gdec global using declarations
-" @param includes includes visible from the current buffer, recursively
 "
 " @return a list of inherited contexts, qualified
 "
-func! omnicpp#ns#BaseClasses(class, gdir, gdec, includes)
+func! omnicpp#ns#BaseClasses(class, gdir, gdec)
 
     " Unresolved class names
     let inherits = [a:class]
@@ -141,7 +139,8 @@ func! omnicpp#ns#BaseClasses(class, gdir, gdec, includes)
             if found | break | endif
 
             for item in taglist('\V\C\^'.ns.inherit['name'].'\$')
-                if omnicpp#tag#Match(item, a:includes)
+                let includes = omnicpp#include#ParseRecursive(omnicpp#tag#Path(item))
+                if omnicpp#tag#Match(item, includes)
                     call add(qualified, item['name'].'::')
                     let nest = s:GetNest(omnicpp#tag#Context(item))
                     for name in split(get(item,'inherits',''),',')
@@ -162,7 +161,8 @@ func! omnicpp#ns#BaseClasses(class, gdir, gdec, includes)
             if split(dec,'::')[-1] != inherit['name'] | continue | endif
 
             for item in taglist('\V\C\^'.dec.'\$')
-                if omnicpp#tag#Match(item, a:includes)
+                let includes = omnicpp#include#ParseRecursive(omnicpp#tag#Path(item))
+                if omnicpp#tag#Match(item, includes)
                     call add(qualified, item['name'].'::')
                     let nest = s:GetNest(omnicpp#tag#Context(item))
                     for name in split(get(item,'inherits',''),',')
@@ -181,11 +181,11 @@ func! omnicpp#ns#BaseClasses(class, gdir, gdec, includes)
 endfunc
 
 
-"{{{1 Auxiliary
+" === Auxiliary ========================================================
 
 func! s:GlobalUsing(regex, cache)
     let using = omnicpp#scope#MatchGlobal(a:regex)
-    for inc in omnicpp#include#AllIncludes()
+    for inc in omnicpp#include#CurrentBuffer()
         if !a:cache.has(inc)
             let parse = omnicpp#utils#VGrep(inc, a:regex)
             let using += parse
@@ -208,5 +208,3 @@ func! s:GetNest(context)
     endfor
     return nests
 endfunc
-
-" vim: fdm=marker
