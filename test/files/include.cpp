@@ -18,4 +18,4 @@
 "hello"; //hi
 #include "include.h"
 #include "unknown.h"
-//*AllIncludes*
+//*CurrentBuffer*

@@ -27,7 +27,7 @@ endfunc
 " up-to-date, it is used instead of parsing the file, else the cache is
 " updated.
 "
-" @param file Full path to the file to be parsed
+" @param file Full path of the file to be parsed
 " @return List of includes, expanded path
 "
 func! omnicpp#include#Parse(file)
@@ -43,47 +43,48 @@ func! omnicpp#include#Parse(file)
     return includes
 endfunc
 
-" List all includes visible from the current buffer. We start by
-" building a list of local and global includes; then we parse every
-" entry for additional includes, add those to the list, and loop till
-" all the includes have been parsed.
+" Parse a file (or a list of files) recursively, and return all includes
+" visible from this (those) file(s).
 "
-" At the end, the list of visited files is returned (every include found
-" and parsed is listed once)
+" @param entries Full path (or list of paths) to be parsed
+" @return List of includes visible from input file(s), expanded
 "
-" @return list of filenames, including the current buffer
-"
-func! omnicpp#include#AllIncludes()
-    let curBuf = expand('%:p')
-
-    if s:cache.has(curBuf)
-        let includes = s:cache.get(curBuf)
-    else
-        " The includes to be parsed
-        let includes = omnicpp#include#LocalIncludes()
-        let includes += omnicpp#include#GlobalIncludes()
-        " Resolve all includes
-        call s:ResolveIncludes(includes, expand('%:p:h'))
-
-        call s:cache.put(curBuf, includes)
-    endif
-
-    " Add current filename to parsed files in case it is included in one
-    " of the headers
-    let visited = [curBuf]
+func! omnicpp#include#ParseRecursive(entries)
+    " Convert single file to list of files
+    let entries = type(a:entries) == type([]) ? a:entries : [a:entries]
+    " Unresolved includes
+    let includes = copy(entries)
+    " Resolved includes
+    let visited = []
 
     while !empty(includes)
         let inc = remove(includes,-1)
-        " Check for duplicates
-        if index(visited, inc) >= 0 | continue | endif
-
         call add(visited, inc)
-        let includes += omnicpp#include#Parse(inc)
+
+        for found in omnicpp#include#Parse(inc)
+            " Check for duplicates
+            if index(visited, found) == -1
+                call add(includes, found)
+            endif
+        endfor
     endwhile
 
-    " Remove current buffer
-    call remove(visited, 0)
+    " Remove input files from the list of visited includes
+    call filter(visited, 'index(entries,v:val)==-1')
     return visited
+endfunc
+
+" List all includes visible from the current buffer up to the cursor's
+" position, by recursively parsing local and global includes before the
+" cursor.
+"
+" @return List of includes, expanded
+"
+func! omnicpp#include#CurrentBuffer()
+    " We cannot cache those, since the cursor's position changes
+    let includes = omnicpp#include#LocalIncludes() + omnicpp#include#GlobalIncludes()
+    call s:ResolveIncludes(includes, expand('%:p:h'))
+    return includes + omnicpp#include#ParseRecursive(includes)
 endfunc
 
 " === Auxiliary ========================================================
@@ -104,7 +105,7 @@ func! s:ResolveInclude(include, currentDir)
     " Search current directory for quoted includes
     if a:include[0]=='"'
         let path = get(split(globpath(a:currentDir, names[0]),'\n'), 0, '')
-    " Extension is optional for bracket includes
+        " Extension is optional for bracket includes
     else
         let names += [names[0].'.h', names[0].'.hpp']
     endif
