@@ -16,22 +16,33 @@ let s:cacheDec = omnicpp#cache#Create()
 
 " === Functions ========================================================
 
-function! omnicpp#ns#LocalUsingDeclarations()
-    return map(omnicpp#scope#MatchLocal(s:reDeclaration), 'substitute(v:val,"\\s\\+","","g")')
+" Parse the given files for using-directives.
+func! omnicpp#ns#ParseDirectives(files)
+    return s:ParseUsing(a:files, s:reDirective, s:cacheDir)
 endfunc
 
-function! omnicpp#ns#LocalUsingDirectives()
-    return map(omnicpp#scope#MatchLocal(s:reDirective), 'substitute(v:val,"\\s\\+","","g")')
+" Parse the given files for using-declarations.
+func! omnicpp#ns#ParseDeclarations(files)
+    return s:ParseUsing(a:files, s:reDeclaration, s:cacheDec)
 endfunc
 
-function! omnicpp#ns#GlobalUsingDeclarations()
-    return s:GlobalUsing(s:reDeclaration, s:cacheDec)
+" Parse the current buffer up to the cursor's position for local/global
+" using-directives, as well as any included file, recursively.
+func! omnicpp#ns#CurrentDirectives()
+    let dirs = omnicpp#scope#MatchLocal(s:reDirective) + omnicpp#scope#MatchGlobal(s:reDirective)
+    call map(dirs, 'substitute(v:val,"\\s\\+","","g")')
+    let incs = omnicpp#include#CurrentBuffer()
+    return dirs + omnicpp#ns#ParseDirectives(incs)
 endfunc
 
-function! omnicpp#ns#GlobalUsingDirectives()
-    return s:GlobalUsing(s:reDirective, s:cacheDir)
+" Parse the current buffer up to the cursor's position for local/global
+" using-declarations, as well as any included file, recursively.
+func! omnicpp#ns#CurrentDeclarations()
+    let decs = omnicpp#scope#MatchLocal(s:reDeclaration) + omnicpp#scope#MatchGlobal(s:reDeclaration)
+    call map(decs, 'substitute(v:val,"\\s\\+","","g")')
+    let incs = omnicpp#include#CurrentBuffer()
+    return decs + omnicpp#ns#ParseDeclarations(incs)
 endfunc
-
 
 " When inside a context definition/declaration, or when implementing a
 " method using its qualified name, list all contexts visible at the
@@ -42,18 +53,12 @@ endfunc
 func! omnicpp#ns#CurrentContexts()
     let origPos = getpos('.')
     " For every context found, store its name, a binary type (0 for
-    " namespaces, 1 otherwise), and local using instructions up to the
+    " namespaces, 1 otherwise), and using instructions up to the
     " cursor's position.
     let contexts = []
 
-    let gdec = omnicpp#ns#GlobalUsingDeclarations()
-    let gdir = omnicpp#ns#GlobalUsingDirectives()
-
     while searchpair('{','','}','bW','omnicpp#utils#IsCursorInCommentOrString()')
         let instruct = omnicpp#utils#ExtractInstruction()
-
-        let ldec = omnicpp#ns#LocalUsingDeclarations()
-        let ldir = omnicpp#ns#LocalUsingDirectives()
 
         " Explicit namespace directive
         let ns = matchstr(instruct, '\v<namespace>\s+\zs'.g:omnicpp#syntax#reIdSimple.'\ze\s*$')
@@ -62,11 +67,14 @@ func! omnicpp#ns#CurrentContexts()
             continue
         endif
 
+        let dec = map(omnicpp#ns#CurrentDeclarations(), 'split(v:val,"::")[-1]')
+        let dir = omnicpp#ns#CurrentDirectives()
+
         " Class declaration
         let cls = matchstr(instruct, '\v<class>\s+\zs'.g:omnicpp#syntax#reIdSimple.'\ze\s*(:|$)')
         if !empty(cls)
             call insert(contexts, {'name' : cls, 'type' : 1,
-                        \ 'ldec' : ldec, 'ldir' : ldir})
+                        \ 'dec' : dec, 'dir' : dir})
             continue
         endif
 
@@ -81,7 +89,7 @@ func! omnicpp#ns#CurrentContexts()
                             \ instruct[:endPos],'\('.g:omnicpp#syntax#reIdSimple.'\s*::\s*)+\ze'.g:omnicpp#syntax#reIdSimple.'\s*$'),
                             \ '\s\+', '', 'g'), '::'))
                     call insert(contexts, {'name' : simpleContext, 'type' : 1,
-                                \ 'ldec' : ldec, 'ldir' : ldir})
+                                \ 'dec' : dec, 'dir' : dir})
                 endfor
             endif
         endif
@@ -98,32 +106,29 @@ func! omnicpp#ns#CurrentContexts()
     for context in contexts
         if context.type
             let context.nest = nest
-            call extend(inherit, omnicpp#ns#BaseClasses(context, gdir, gdec))
+            call extend(inherit, omnicpp#ns#BaseClasses(context))
         endif
 
-        call insert(nest, nest[0].context['name'].'::')
+        call insert(nest, len(nest)==1 ? context['name'] : nest[0].'::'.context['name'])
     endfor
 
     return extend(nest,inherit,-1)
 endfunc
 
-" Look up the inherited contexts for classes/structs recursively. The
-" inheritance is resolved by searching the nested context containing the
-" declaration, local using directives and declarations (for the base
-" class only), and global using directives and declarations (no
-" visibility checks; we use the same list for all lookups).
+" Given a class/struct, look up its declaration, then extract inherited
+" classes recursively. Inherited classes are resolved by searching
+" nesting blocks around the declaration, as well as using-directives and
+" using-declarations visible at that point.
 "
 " @param class a dictionary representing the class to lookup:
-"   - name : the class' name, unqualified
-"   - nest : all contexts made visible by imbricating blocks
-"   - ldir : local using directives
-"   - ldec : local using declarations
-" @param gdir global using directives
-" @param gdec global using declarations
+"   - name: the class' name (unqualified)
+"   - nest: nesting around the class declaration; see s:GetNest()
+"   - dir:  using-directives visible from the class' declaration
+"   - dec:  using-declarations visible from the class' declaration
 "
 " @return a list of inherited contexts, qualified
 "
-func! omnicpp#ns#BaseClasses(class, gdir, gdec)
+func! omnicpp#ns#BaseClasses(class)
 
     " Unresolved class names
     let inherits = [a:class]
@@ -133,45 +138,29 @@ func! omnicpp#ns#BaseClasses(class, gdir, gdec)
     while !empty(inherits)
         let inherit = remove(inherits,-1)
 
-        let found = 0
-        " Visible contexts
-        for ns in inherit.nest + get(inherit,'ldir',[]) + a:gdir
-            if found | break | endif
+        for item in taglist('\V\C\^'.inherit['name'].'\$')
+            let path = omnicpp#tag#Path(item)
+            let includes = omnicpp#include#ParseRecursive(path)
 
-            for item in taglist('\V\C\^'.ns.inherit['name'].'\$')
-                let includes = omnicpp#include#ParseRecursive(omnicpp#tag#Path(item))
-                if omnicpp#tag#Match(item, includes)
-                    call add(qualified, item['name'].'::')
-                    let nest = s:GetNest(omnicpp#tag#Context(item))
+            if omnicpp#tag#Visible(item, includes)
+                let context = omnicpp#tag#Context(item)
+
+                if index(inherit.nest + inherit.dir, context) >= 0
+                            \ || index(inherit.dec, inherit.name) >=0
+                    call add(qualified, empty(context) ? item['name'] : context.'::'.item['name'])
+
+                    let nest = s:GetNest(context)
+                    let dir = omnicpp#ns#ParseDirectives([path]+includes)
+                    let dec = omnicpp#ns#ParseDeclarations([path]+includes)
+                    call map(dec, 'split(v:val,"::")[-1]')
+
                     for name in split(get(item,'inherits',''),',')
-                        call add(inherits, {'name' : name, 'nest' : nest})
+                        call add(inherits, {'name' : name, 'nest' : nest,
+                                    \ 'dir' : dir, 'dec' : dec})
                     endfor
-                    let found = 1
                     break
                 endif
-            endfor
-        endfor
-
-        if found | continue | endif
-
-        let found = 0
-        " Using declarations with matching name
-        for dec in get(inherit,'ldec',[]) + a:gdec
-            if found | break | endif
-            if split(dec,'::')[-1] != inherit['name'] | continue | endif
-
-            for item in taglist('\V\C\^'.dec.'\$')
-                let includes = omnicpp#include#ParseRecursive(omnicpp#tag#Path(item))
-                if omnicpp#tag#Match(item, includes)
-                    call add(qualified, item['name'].'::')
-                    let nest = s:GetNest(omnicpp#tag#Context(item))
-                    for name in split(get(item,'inherits',''),',')
-                        call add(inherits, {'name' : name, 'nest' : nest})
-                    endfor
-                    let found = 1
-                    break
-                endif
-            endfor
+            endif
         endfor
     endwhile
 
@@ -183,28 +172,41 @@ endfunc
 
 " === Auxiliary ========================================================
 
-func! s:GlobalUsing(regex, cache)
-    let using = omnicpp#scope#MatchGlobal(a:regex)
-    for inc in omnicpp#include#CurrentBuffer()
-        if !a:cache.has(inc)
-            let parse = omnicpp#utils#VGrep(inc, a:regex)
-            let using += parse
-            call a:cache.put(inc, parse)
-        else
-            let using += a:cache.get(inc)
+" Parse a list of files for a given expression, using/updating the
+" cache. Spaces and duplicates are then removed.
+"
+" @param entries List of files to parse, usually obtained through
+" includes analysis
+" @param regexp Regexp to look for
+" @param cache Cache object to use (for up-to-date entries) or update
+" (for outdated/new entries)
+"
+" @return List of matches
+"
+func! s:ParseUsing(entries, regexp, cache)
+    let matches = []
+
+    for entry in a:entries
+        if !a:cache.has(entry)
+            call a:cache.put(entry, omnicpp#utils#VGrep(entry, a:regexp))
         endif
+        call extend(matches, a:cache.get(entry))
     endfor
-    call map(using, 'substitute(v:val,"\\s\\+","","g")')
-    return filter(using, 'count(using,v:val)==1')
+
+    call map(matches, 'substitute(v:val,"\\s\\+","","g")')
+    call filter(matches, 'count(matches,v:val)==1')
+
+    return matches
 endfunc
 
 " Given a context string (xx::yy::zz), return all visible sub-contexts
 " (in this case, [xx::yy::zz::, xx::yy::, xx::, ''])
 func! s:GetNest(context)
-    let nests = ['']
+    let nests = []
     let elems = split(a:context, '::')
     for elem in elems
-        call insert(nests, nests[0].elem.'::')
+        call insert(nests, empty(nests) ? elem : nests[0].'::'.elem)
     endfor
+    call add(nests, '')
     return nests
 endfunc
