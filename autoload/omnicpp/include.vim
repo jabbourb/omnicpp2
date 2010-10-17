@@ -23,6 +23,19 @@ function! omnicpp#include#GlobalIncludes()
     return omnicpp#scope#MatchGlobal(s:reInclude)
 endfunc
 
+" Grep includes from a file, then resolve them relatively to the file's
+" parent directory (non-recursive).
+"
+" @param file Full path to the file to be parsed
+" @return List of includes, expanded path
+"
+func! omnicpp#include#Parse(file)
+    let includes = omnicpp#utils#VGrep(a:file, s:reInclude)
+    let pwd = '/'.join(split(a:file,'/')[:-2],'/')
+    call s:ResolveIncludes(includes, pwd)
+    return includes
+endfunc
+
 " List all includes visible from the current buffer. We start by
 " building a list of local and global includes; then we parse every
 " entry for additional includes, add those to the list, and loop till
@@ -36,18 +49,16 @@ endfunc
 func! omnicpp#include#AllIncludes()
     let curBuf = expand('%:p')
 
-    if !s:cache.has(curBuf)
+    if s:cache.has(curBuf)
+        let includes = s:cache.get(curBuf)
+    else
         " The includes to be parsed
         let includes = omnicpp#include#LocalIncludes()
         let includes += omnicpp#include#GlobalIncludes()
-
         " Resolve all includes
-        let pwd = expand('%:p:h')
-        call s:ResolveIncludes(includes, pwd)
+        call s:ResolveIncludes(includes, expand('%:p:h'))
 
         call s:cache.put(curBuf, includes)
-    else
-        let includes = s:cache.get(curBuf)
     endif
 
     " Add current filename to parsed files in case it is included in one
@@ -62,16 +73,12 @@ func! omnicpp#include#AllIncludes()
         endif
         call add(visited, inc)
 
-        if !s:cache.has(inc)
-            let found = s:ParseFile(inc)
-            let pwd = '/'.join(split(inc,'/')[:-2],'/')
-            call s:ResolveIncludes(found, pwd)
-
-            " Duplicates?
+        if s:cache.has(inc)
+            let includes += s:cache.get(inc)
+        else
+            let found = omnicpp#include#Parse(inc)
             call s:cache.put(inc, found)
             let includes += found
-        else
-            let includes += s:cache.get(inc)
         endif
     endwhile
 
@@ -120,23 +127,6 @@ endfunc
 func! s:ResolveIncludes(includes, currentDir)
     call map(a:includes, 's:ResolveInclude(v:val, a:currentDir)')
     call filter(a:includes, '!empty(v:val)')
-endfunc
-
-" Grep includes from the given file into the location list, then extract
-" the matching strings.
-"
-" @param file the full path to the file to be parsed
-" @return list of includes
-"
-func! s:ParseFile(file)
-    let includes = []
-    exe 'noau silent! lvimgrep /'.s:reInclude.'/gj '.a:file
-    let loclist = getloclist(0)
-    for inc in loclist
-        let line = inc.text
-        let includes += [matchstr(line, s:reInclude)]
-    endfor
-    return includes
 endfunc
 
 " vim: fdm=marker

@@ -15,6 +15,11 @@ func! g:TestGlobalIncludes()
     call g:Assert(includes == ['"g1.h"', '<g2.h>'])
 endfunc
 
+func! g:TestParse()
+    let includes = omnicpp#include#Parse(expand('%:p'))
+    call g:Assert(includes == [expand('%:p:h').'/include.h'])
+endfunc
+
 func! g:TestAllIncludes()
     let includes = omnicpp#include#AllIncludes()
     call sort(includes)
