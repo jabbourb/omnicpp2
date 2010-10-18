@@ -16,28 +16,30 @@ let s:cacheDec = omnicpp#cache#Create()
 
 " === Functions ========================================================
 
-" Parse the given files for using-directives.
-func! omnicpp#ns#ParseDirectives(files)
-    return s:ParseUsing(a:files, s:reDirective, s:cacheDir)
+" Parse the given file(s) for using-directives. If a single file is
+" passed, perform a partial parse using the optional argument without
+" updating the cache.
+"
+" @param entry a single file or a list of files
+" @param ... for a single file, a non-zero argument will stop parsing at
+" that line number
+" @return List of using-directives, sanitized
+"
+func! omnicpp#ns#ParseDirectives(entry, ...)
+    if type(a:entry) == type([])
+        return s:ParseUsing(a:entry, s:reDirective, s:cacheDir)
+    else
+        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, s:reDirective, get(a:000,0,0)))
+    endif
 endfunc
 
-" Parse the given files for using-declarations.
-func! omnicpp#ns#ParseDeclarations(files)
-    return s:ParseUsing(a:files, s:reDeclaration, s:cacheDec)
-endfunc
-
-""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" Note: Partial file parsing doesn't update the cache"
-""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-" Parse the given file for using-directives up to a certain line.
-func! omnicpp#ns#ParseDirSingle(file, stop)
-    return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:file, s:reDirective, a:stop))
-endfunc
-
-" Parse the given file for using-declarations up to a certain line.
-func! omnicpp#ns#ParseDecSingle(file, stop)
-    return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:file, s:reDeclaration, a:stop))
+" Parse the given file(s) for using-declarations (see ParseDirectives())
+func! omnicpp#ns#ParseDeclarations(entry, ...)
+    if type(a:entry) == type([])
+        return s:ParseUsing(a:entry, s:reDeclaration, s:cacheDir)
+    else
+        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, s:reDeclaration, get(a:000,0,0)))
+    endif
 endfunc
 
 " Parse the current buffer up to the cursor's position for local/global
@@ -163,9 +165,9 @@ func! omnicpp#ns#BaseClasses(class)
                     call add(qualified, empty(context) ? item['name'] : context.'::'.item['name'])
 
                     let nest = s:GetNest(context)
-                    let dir = omnicpp#ns#ParseDirSingle(path, get(item,'line',0))
+                    let dir = omnicpp#ns#ParseDirectives(path, get(item,'line',0))
                                 \ + omnicpp#ns#ParseDirectives(includes)
-                    let dec = omnicpp#ns#ParseDecSingle(path, get(item,'line',0))
+                    let dec = omnicpp#ns#ParseDeclarations(path, get(item,'line',0))
                                 \ + omnicpp#ns#ParseDeclarations(includes)
                     call map(dec, 'split(v:val,"::")[-1]')
 
