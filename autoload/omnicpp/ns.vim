@@ -85,12 +85,13 @@ func! omnicpp#ns#CurrentContexts()
 
         let dec = map(omnicpp#ns#CurrentDeclarations(), 'split(v:val,"::")[-1]')
         let dir = omnicpp#ns#CurrentDirectives()
+        let inc = omnicpp#include#CurrentBuffer()
 
         " Class declaration
         let cls = matchstr(instruct, '\v<class>\s+\zs'.g:omnicpp#syntax#reIdSimple.'\ze\s*(:|$)')
         if !empty(cls)
             call insert(contexts, {'name' : cls, 'type' : 1,
-                        \ 'dec' : dec, 'dir' : dir})
+                        \ 'dec' : dec, 'dir' : dir, 'inc' : inc})
             continue
         endif
 
@@ -105,7 +106,7 @@ func! omnicpp#ns#CurrentContexts()
                             \ instruct[:endPos],'\('.g:omnicpp#syntax#reIdSimple.'\s*::\s*)+\ze'.g:omnicpp#syntax#reIdSimple.'\s*$'),
                             \ '\s\+', '', 'g'), '::'))
                     call insert(contexts, {'name' : simpleContext, 'type' : 1,
-                                \ 'dec' : dec, 'dir' : dir})
+                                \ 'dec' : dec, 'dir' : dir, 'inc' : inc})
                 endfor
             endif
         endif
@@ -138,6 +139,7 @@ endfunc
 "
 " @param class a dictionary representing the class to lookup:
 "   - name: the class' name (unqualified)
+"   - inc:  includes visible at the declaration's position
 "   - nest: nesting around the class declaration; see s:GetNest()
 "   - dir:  using-directives visible from the class' declaration
 "   - dec:  using-declarations visible from the class' declaration
@@ -154,26 +156,26 @@ func! omnicpp#ns#BaseClasses(class)
         let inherit = remove(inherits,-1)
 
         for item in taglist('\V\C\^'.inherit['name'].'\$')
-            let path = omnicpp#tag#Path(item)
-            let includes = omnicpp#include#ParseRecursive(path, get(item,'line',0))
-
-            if omnicpp#tag#Visible(item, includes)
+            if omnicpp#tag#Visible(item, inherit.inc)
                 let context = omnicpp#tag#Context(item)
 
                 if index(inherit.nest + inherit.dir, context) >= 0
                             \ || index(inherit.dec, inherit.name) >=0
                     call add(qualified, empty(context) ? item['name'] : context.'::'.item['name'])
 
+                    let path = omnicpp#tag#Path(item)
+
                     let nest = s:GetNest(context)
+                    let inc = omnicpp#include#ParseRecursive(path, get(item,'line',0))
                     let dir = omnicpp#ns#ParseDirectives(path, get(item,'line',0))
-                                \ + omnicpp#ns#ParseDirectives(includes)
+                                \ + omnicpp#ns#ParseDirectives(inc)
                     let dec = omnicpp#ns#ParseDeclarations(path, get(item,'line',0))
-                                \ + omnicpp#ns#ParseDeclarations(includes)
+                                \ + omnicpp#ns#ParseDeclarations(inc)
                     call map(dec, 'split(v:val,"::")[-1]')
 
                     for name in split(get(item,'inherits',''),',')
                         call add(inherits, {'name' : name, 'nest' : nest,
-                                    \ 'dir' : dir, 'dec' : dec})
+                                    \ 'dir' : dir, 'dec' : dec, 'inc' : inc})
                     endfor
                     break
                 endif
