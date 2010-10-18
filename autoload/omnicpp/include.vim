@@ -30,12 +30,12 @@ endfunc
 " @param file Full path of the file to be parsed
 " @return List of includes, expanded path
 "
-func! omnicpp#include#Parse(file)
+func! omnicpp#include#Parse(file, ...)
     if s:cache.has(a:file)
         return s:cache.get(a:file)
     endif
 
-    let includes = omnicpp#utils#VGrep(a:file, s:reInclude)
+    let includes = omnicpp#utils#VGrep(a:file, s:reInclude, get(a:000,0,0))
     let pwd = '/'.join(split(a:file,'/')[:-2],'/')
     call s:ResolveIncludes(includes, pwd)
     call s:cache.put(a:file, includes)
@@ -43,17 +43,23 @@ func! omnicpp#include#Parse(file)
     return includes
 endfunc
 
-" Parse a file (or a list of files) recursively, and return all includes
-" visible from this (those) file(s).
+" Parse a file (or list of files) recursively. The behavior differs
+" between a single file and a list; the former is parsed up to a certain
+" line (if specified) and is not included in the results, whereas in the
+" latter case input files are parsed completely (ignoring optional
+" arguments), and are included in the results.
 "
-" @param entries Full path (or list of paths) to be parsed
-" @return List of includes visible from input file(s), expanded
+" @param entry path of the file to be parsed, or list of paths
+" @param ... when given a single file, a non-zero numeric argument stops
+" parsing that file at the specified line
+" @return List of includes visible from the input file, expanded
+" (caveat: see description)
 "
-func! omnicpp#include#ParseRecursive(entries)
-    " Convert single file to list of files
-    let entries = type(a:entries) == type([]) ? a:entries : [a:entries]
-    " Unresolved includes
-    let includes = copy(entries)
+func! omnicpp#include#ParseRecursive(entry, ...)
+    " Unparsed includes
+    let includes = type(a:entry) == type('')
+                \ ? omnicpp#include#Parse(a:entry, get(a:000,0,0))
+                \ : copy(a:entry)
     " Resolved includes
     let visited = []
 
@@ -69,8 +75,6 @@ func! omnicpp#include#ParseRecursive(entries)
         endfor
     endwhile
 
-    " Remove input files from the list of visited includes
-    call filter(visited, 'index(entries,v:val)==-1')
     return visited
 endfunc
 
@@ -84,7 +88,7 @@ func! omnicpp#include#CurrentBuffer()
     " We cannot cache those, since the cursor's position changes
     let includes = omnicpp#include#LocalIncludes() + omnicpp#include#GlobalIncludes()
     call s:ResolveIncludes(includes, expand('%:p:h'))
-    return includes + omnicpp#include#ParseRecursive(includes)
+    return omnicpp#include#ParseRecursive(includes)
 endfunc
 
 " === Auxiliary ========================================================
