@@ -26,6 +26,20 @@ func! omnicpp#ns#ParseDeclarations(files)
     return s:ParseUsing(a:files, s:reDeclaration, s:cacheDec)
 endfunc
 
+""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" Note: Partial file parsing doesn't update the cache"
+""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+" Parse the given file for using-directives up to a certain line.
+func! omnicpp#ns#ParseDirSingle(file, stop)
+    return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:file, s:reDirective, a:stop))
+endfunc
+
+" Parse the given file for using-declarations up to a certain line.
+func! omnicpp#ns#ParseDecSingle(file, stop)
+    return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:file, s:reDeclaration, a:stop))
+endfunc
+
 " Parse the current buffer up to the cursor's position for local/global
 " using-directives, as well as any included file, recursively.
 func! omnicpp#ns#CurrentDirectives()
@@ -129,7 +143,6 @@ endfunc
 " @return a list of inherited contexts, qualified
 "
 func! omnicpp#ns#BaseClasses(class)
-
     " Unresolved class names
     let inherits = [a:class]
     " Qualified class names
@@ -140,7 +153,7 @@ func! omnicpp#ns#BaseClasses(class)
 
         for item in taglist('\V\C\^'.inherit['name'].'\$')
             let path = omnicpp#tag#Path(item)
-            let includes = omnicpp#include#ParseRecursive(path)
+            let includes = omnicpp#include#ParseRecursive(path, get(item,'line',0))
 
             if omnicpp#tag#Visible(item, includes)
                 let context = omnicpp#tag#Context(item)
@@ -150,8 +163,10 @@ func! omnicpp#ns#BaseClasses(class)
                     call add(qualified, empty(context) ? item['name'] : context.'::'.item['name'])
 
                     let nest = s:GetNest(context)
-                    let dir = omnicpp#ns#ParseDirectives([path]+includes)
-                    let dec = omnicpp#ns#ParseDeclarations([path]+includes)
+                    let dir = omnicpp#ns#ParseDirSingle(path, get(item,'line',0))
+                                \ + omnicpp#ns#ParseDirectives(includes)
+                    let dec = omnicpp#ns#ParseDecSingle(path, get(item,'line',0))
+                                \ + omnicpp#ns#ParseDeclarations(includes)
                     call map(dec, 'split(v:val,"::")[-1]')
 
                     for name in split(get(item,'inherits',''),',')
@@ -193,10 +208,16 @@ func! s:ParseUsing(entries, regexp, cache)
         call extend(matches, a:cache.get(entry))
     endfor
 
-    call map(matches, 'substitute(v:val,"\\s\\+","","g")')
-    call filter(matches, 'count(matches,v:val)==1')
+    return s:ParseUsingCleanse(matches)
+endfunc
 
-    return matches
+" Clean up the using-instructions by removing spaces and filtering
+" duplicates.
+func! s:ParseUsingCleanse(matches)
+    " Remove spaces
+    call map(a:matches, 'substitute(v:val,"\\s\\+","","g")')
+    " Remove duplicates
+    return filter(a:matches, 'count(a:matches,v:val)==1')
 endfunc
 
 " Given a context string (xx::yy::zz), return all visible sub-contexts
