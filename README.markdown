@@ -1,4 +1,4 @@
-This is a complete rewrite of the original OmniCpp plugin for Vim. It
+This is a complete rewrite of the original OmniCpp plugin for Vim; it
 aims at providing Omni completion for C/C++ files as would any
 full-fledged IDE.
 
@@ -16,8 +16,11 @@ Features
 
 Caveats
 =======
-- Although file access is cached, the first call might take quite some
-  time to complete, especially for includes in large projects
+- Although file access is cached, the first call in a recursive access
+  might take quite some time to complete, especially for includes in
+  large projects
+- Tags should be generated with the "+n" field to improve accuracy (it
+  will still work otherwise, not as well though)
 
 Installation notes
 ==================
