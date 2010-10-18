@@ -94,13 +94,16 @@ endfunc
 "
 " @param file Full path to the file to be parsed
 " @param regex Regexp to be grepped
+" @param ... a non-zero numeric argument stops the search at the
+" specified line
 "
 " @return List of matches
 "
-func! omnicpp#utils#VGrep(file, regex)
+func! omnicpp#utils#VGrep(file, regex, ...)
     let matches = []
     exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
     for line in getloclist(0)
+        if a:0 && a:1 && line.lnum > a:1 | break | endif
         let matches += [matchstr(line.text, a:regex)]
     endfor
     return matches
