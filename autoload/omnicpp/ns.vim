@@ -29,16 +29,16 @@ func! omnicpp#ns#ParseDirectives(entry, ...)
     if type(a:entry) == type([])
         return s:ParseUsing(a:entry, s:reDirective, s:cacheDir)
     else
-        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, s:reDirective, get(a:000,0,0)))
+        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, '^\s*'.s:reDirective, get(a:000,0,0)))
     endif
 endfunc
 
 " Parse the given file(s) for using-declarations (see ParseDirectives())
 func! omnicpp#ns#ParseDeclarations(entry, ...)
     if type(a:entry) == type([])
-        return s:ParseUsing(a:entry, s:reDeclaration, s:cacheDir)
+        return s:ParseUsing(a:entry, s:reDeclaration, s:cacheDec)
     else
-        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, s:reDeclaration, get(a:000,0,0)))
+        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, '^\s*'.s:reDeclaration, get(a:000,0,0)))
     endif
 endfunc
 
@@ -206,7 +206,7 @@ func! s:ParseUsing(entries, regexp, cache)
 
     for entry in a:entries
         if !a:cache.has(entry)
-            call a:cache.put(entry, omnicpp#utils#VGrep(entry, a:regexp))
+            call a:cache.put(entry, omnicpp#utils#VGrep(entry, '^\s*'.a:regexp))
         endif
         call extend(matches, a:cache.get(entry))
     endfor

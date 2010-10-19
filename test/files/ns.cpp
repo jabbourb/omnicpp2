@@ -11,9 +11,11 @@ c1;
 using namespace g1::
     g2;
 
-    //using namespace std;
+    //using namespace myns;
 
 printf("using n1::n2;");
+
+//*ParseDirectives*
 
 {
 using n1::cls1;
@@ -31,16 +33,9 @@ using namespace n1::
 
 //using n1::c0;
 
-//*LocalUsing*
+//*CurrentBuffer*
 }
-
-using g1
-::
-    g2
-    ::c2;
-
-//*GlobalUsing*
-
+//*ParseDeclarations*
 
 namespace n1 {
     namespace n2 {
