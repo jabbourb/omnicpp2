@@ -21,6 +21,9 @@ Caveats
   large projects
 - Tags should be generated with the "+n" field to improve accuracy (it
   will still work otherwise, not as well though)
+- Using-instructions are not resolved; this means that successive,
+  separate using-instructions instead of a single, '::' separated
+  string, will fail
 
 Installation notes
 ==================
