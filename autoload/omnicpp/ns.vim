@@ -114,22 +114,21 @@ func! omnicpp#ns#CurrentContexts()
 
     call setpos('.', origPos)
 
-    " List of contexts made available by nesting blocks, longest first.
-    " We start with the global (empty) context.
+    " List of contexts made available by nesting blocks, by order of
+    " precedence. We start with the global (empty) context.
     let nest = ['']
-    " List of contexts made available through inheritance at some level.
-    let inherit = []
 
     for context in contexts
+        let last = nest[0]
         if context.type
             let context.nest = nest
-            call extend(inherit, omnicpp#ns#BaseClasses(context))
+            call extend(nest, omnicpp#ns#BaseClasses(context), 0)
         endif
 
-        call insert(nest, len(nest)==1 ? context['name'] : nest[0].'::'.context['name'])
+        call insert(nest, empty(last) ? context['name'] : last.'::'.context['name'])
     endfor
 
-    return extend(nest,inherit,-1)
+    return nest
 endfunc
 
 " Given a class/struct, look up its declaration, then extract inherited
