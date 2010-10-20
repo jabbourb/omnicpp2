@@ -21,7 +21,8 @@ endfunc
 "
 func! omnicpp#tag#Visible(item, includes)
     let path = omnicpp#tag#Path(a:item)
-    return path == expand('%:p') || index(a:includes, path) >= 0
+    return (path == expand('%:p') && get(a:item,'line',0) <= getpos('.')[1])
+                \ || index(a:includes, path) >= 0
 endfunc
 
 " Retrieve the context this tag is declared in (the qualified name of
@@ -54,4 +55,29 @@ endfunc
 func! omnicpp#tag#Match(item, includes)
     return omnicpp#tag#Visible(a:item, a:includes)
                 \ && match(a:item.name, omnicpp#tag#Context(a:item)) == 0
+endfunc
+
+" Check if a tag is accessible through a list of using-declarations.
+"
+" @param item a tag item, as returned by taglist()
+" @param declarations list of using-declarations to search
+" @return 1 if the item is accessible through the using-declarations, 0
+" otherwise
+"
+func! omnicpp#tag#Declarations(item, declarations)
+    let context = omnicpp#tag#Context(a:item)
+    " A tag outside a context cannot match any using-declaration
+    if empty(context) | return 0 | endif
+
+    for dec in a:declarations
+        let prefix = join(split(dec,'::')[:-2],'::')
+        let name = split(dec,'::')[-1]
+
+        if a:item.name == name &&
+                    \ context == prefix
+            return 1
+        endif
+    endfor
+
+    return 0
 endfunc
