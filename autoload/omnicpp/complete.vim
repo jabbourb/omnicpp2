@@ -1,3 +1,9 @@
+" Suffix when looking up a base in tag files.
+" We want the base to match against the last part of an eventually
+" qualified name.
+let s:reSuffix = '\v[^:]*$'
+
+" The omnifunc method
 function! omnicpp#complete#Main(findstart, base)
     if a:findstart
         " We need to set s:mayComplete to 1 if completion is possible
@@ -21,58 +27,68 @@ function! omnicpp#complete#Main(findstart, base)
     endif
 
     " Cache includes for all subsequent operations
-    let s:includes = omnicpp#include#AllIncludes()
+    let s:includes = omnicpp#include#CurrentBuffer()
 
     if !empty(s:tokens) && s:tokens[-1].text == '::'
-        let qualified = ''
-        while !empty(s:tokens) && (s:tokens[-1].text == '::' || s:tokens[-1].type == 'identifier')
-            let qualified = remove(s:tokens, -1).text . qualified
-        endwhile
-        return omnicpp#complete#Contexts(qualified.a:base)
+        return omnicpp#complete#Qualified(a:base)
     else
-        return omnicpp#complete#Vars(a:base)
+        return omnicpp#complete#Any(a:base)
     endif
 endfunc
 
-" Return all the variables names starting with a given base and visible
-" at the cursor's position.
-func! omnicpp#complete#Vars(base)
-    " Local variables
-    let vars = omnicpp#declare#LocalVars(a:base)
-
-    " Using declarations
-    for dec in omnicpp#ns#LocalUsingDeclarations() + omnicpp#ns#GlobalUsingDeclarations()
-        let decName = split(dec,'::')[-1]
-        if match(decName, a:base) == 0
-            let vars += [decName]
-        endif
-    endfor
-
-    let vars += omnicpp#complete#Contexts(a:base)
-
-    call filter(vars, 'count(vars,v:val)==1')
-    return vars
-endfunc
-
-" Search base classes, current namespaces, imported namespaces and
-" global context visible at the cursor's position
-func! omnicpp#complete#Contexts(base)
+" Search tag files for a qualified name, after retrieving the qualified
+" name from the list of tokens; currently we only look up variables with
+" the same exact qualified name (no implicit context nesting).
+"
+" @param base the base part of the name
+"
+" @return List of matches starting with base
+"
+func! omnicpp#complete#Qualified(base)
     let matches = []
-    " We want the variable name to be the last part of the full
-    " qualified name.
-    let tagQuery = '\V\C\^\('.join(omnicpp#ns#CurrentContexts()
-                \ + omnicpp#ns#LocalUsingDirectives()
-                \ + omnicpp#ns#GlobalUsingDirectives(), '\|').'\)\='.a:base.'\[^:]\*\$'
-    for item in taglist(tagQuery)
+    " Get qualifier from tokens
+    let qualifier = s:GetQualifier()
+
+    " Look up the exact qualified name
+    " TODO also search contexts and using-declarations
+    for item in taglist('\V\C\^'.qualifier.a:base.s:reSuffix)
         if omnicpp#tag#Match(item, s:includes)
-            let matches += [split(item.name, '::')[-1]]
+            call add(matches, split(item.name,'::')[-1])
         endif
     endfor
 
     return matches
 endfunc
 
-" Used in the first invocation of Main() to find the base start col
+" Search local variables and tag files for any name matching a given
+" base, in a context visible at the cursor's location.
+"
+" @param base the base part of the name
+" @return List of matches starting with base
+"
+func! omnicpp#complete#Any(base)
+    " Local variables
+    let matches = omnicpp#declare#LocalVars(a:base)
+
+    " List of contexts to search
+    let contexts = omnicpp#ns#CurrentDirectives() + omnicpp#ns#CurrentContexts()
+    " List of imported members
+    let decs = omnicpp#ns#CurrentDeclarations()
+
+    " Look up unqualified names
+    for item in taglist('\V\C\^'.a:base.s:reSuffix)
+        if omnicpp#tag#Visible(item, s:includes) &&
+                    \ (index(contexts, omnicpp#tag#Context(item)) >= 0
+                    \ || omnicpp#tag#Declarations(item, decs))
+            call add(matches, item.name)
+        endif
+    endfor
+
+    call filter(matches, 'count(matches,v:val)==1')
+    return matches
+endfunc
+
+" Used in the first invocation of Main() to find the base start col.
 "
 " @return the base start col, or -1 if no completion is possible
 "
@@ -89,4 +105,22 @@ function! s:FindStartOfCompletion()
     endif
 
     return begin
+endfunc
+
+func! s:GetQualifier()
+    let qualifier = ''
+    let last = ''
+
+    while !empty(s:tokens)
+        let cur = remove(s:tokens,-1)
+        if (cur.text == '::' && last != '::') ||
+                    \ (cur.type == 'identifier' && last == '::')
+            let last = cur.text
+            let qualifier = last . qualifier
+        else
+            break
+        endif
+    endwhile
+
+    return qualifier
 endfunc

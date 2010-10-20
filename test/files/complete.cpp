@@ -21,8 +21,8 @@ int c2;
     int &c4[0];
 
     namespace n1 {
-        int any
-//*Vars*
-//*Contexts*
+        int any;
+//*Any*
+//*Qualified*
     }
 }

@@ -158,6 +158,7 @@ func! omnicpp#ns#BaseClasses(class)
             if omnicpp#tag#Visible(item, inherit.inc)
                 let context = omnicpp#tag#Context(item)
 
+                " TODO Matching against inherit.dec can be refactored
                 if index(inherit.nest + inherit.dir, context) >= 0
                             \ || index(inherit.dec, inherit.name) >=0
                     call add(qualified, empty(context) ? item['name'] : context.'::'.item['name'])
