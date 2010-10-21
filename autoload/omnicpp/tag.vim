@@ -81,3 +81,7 @@ func! omnicpp#tag#Declarations(item, declarations)
 
     return 0
 endfunc
+
+func! omnicpp#tag#Cmd(item)
+    return substitute(a:item.cmd, '^/\^\|\$/$','','g')
+endfunc

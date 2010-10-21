@@ -3,8 +3,9 @@
 " qualified name.
 let s:reSuffix = '\v[^:]*$'
 
-" The omnifunc method
-function! omnicpp#complete#Main(findstart, base)
+" === Main =============================================================
+
+func! omnicpp#complete#Main(findstart, base)
     if a:findstart
         " We need to set s:mayComplete to 1 if completion is possible
         " for the second call
@@ -30,11 +31,15 @@ function! omnicpp#complete#Main(findstart, base)
     let s:includes = omnicpp#include#CurrentBuffer()
 
     if !empty(s:tokens) && s:tokens[-1].text == '::'
-        return omnicpp#complete#Qualified(a:base)
+        return s:CompleteQualified(a:base)
+    elseif !empty(s:tokens) && index(g:omnicpp#syntax#OpMember, s:tokens[-1].text) >= 0
+        return s:CompleteMember(a:base)
     else
-        return omnicpp#complete#Any(a:base)
+        return s:CompleteAny(a:base)
     endif
 endfunc
+
+" === Sub-routines =====================================================
 
 " Search tag files for a qualified name, after retrieving the qualified
 " name from the list of tokens; currently we only look up variables with
@@ -44,7 +49,7 @@ endfunc
 "
 " @return List of matches starting with base
 "
-func! omnicpp#complete#Qualified(base)
+func! s:CompleteQualified(base)
     let matches = []
     " Get qualifier from tokens
     let qualifier = s:GetQualifier()
@@ -60,13 +65,51 @@ func! omnicpp#complete#Qualified(base)
     return matches
 endfunc
 
+func! s:CompleteMember(base)
+    let matches = []
+    call remove(s:tokens, -1)
+
+    if !empty(s:tokens)
+        let parent = s:tokens[-1].text
+        let type = omnicpp#declare#LocalType(parent)
+        " TODO resolve type
+        if empty(type)
+            let contexts = omnicpp#ns#CurrentContexts() + omnicpp#ns#CurrentDirectives()
+            let decs = omnicpp#ns#CurrentDeclarations()
+
+            for item in taglist('\V\C\^'.parent.s:reSuffix)
+                if omnicpp#tag#Visible(item, s:includes) &&
+                            \ (index(contexts, omnicpp#tag#Context(item)) >= 0
+                            \ || omnicpp#tag#Declarations(item, decs))
+                    " TODO this doesn't work for multi-lines declarations
+                    let cmd = omnicpp#tag#Cmd(item)
+                    let type = omnicpp#declare#FromString(cmd)
+                    " TODO resolve type with using-instructions
+                    break
+                endif
+            endfor
+        endif
+        if !empty(type)
+            " TODO this is very slow if we try to complete with an empty
+            " base; but can we assume context::base will be present?
+            for item in taglist('\V\C\^'.a:base.s:reSuffix)
+                if omnicpp#tag#Context(item) == type.base
+                    call add(matches, item.name)
+                endif
+            endfor
+        endif
+    endif
+
+    return matches
+endfunc
+
 " Search local variables and tag files for any name matching a given
 " base, in a context visible at the cursor's location.
 "
 " @param base the base part of the name
 " @return List of matches starting with base
 "
-func! omnicpp#complete#Any(base)
+func! s:CompleteAny(base)
     " Local variables
     let matches = omnicpp#declare#LocalVars(a:base)
 
@@ -88,11 +131,13 @@ func! omnicpp#complete#Any(base)
     return matches
 endfunc
 
+" === Auxiliary ========================================================
+
 " Used in the first invocation of Main() to find the base start col.
 "
 " @return the base start col, or -1 if no completion is possible
 "
-function! s:FindStartOfCompletion()
+func! s:FindStartOfCompletion()
     let begin = -1
     if !empty(s:tokens)
         if index(['keyword', 'identifier'], s:tokens[-1].type) >= 0

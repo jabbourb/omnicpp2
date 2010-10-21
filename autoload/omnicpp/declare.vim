@@ -52,7 +52,7 @@ let s:reVarSubArray =  '\v\[.{-}\]$'
 "
 func! omnicpp#declare#LocalType(var)
     " Last match takes precedence
-    return s:GetTypeFromString(get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), -1, ''))
+    return omnicpp#declare#FromString(get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), -1, ''))
 endfunc
 
 " Search for variables whose name matches a given base and declared in
@@ -112,7 +112,7 @@ endfunc
 
 " Builds the type object from the declaration string passed to it
 " Returns an empty object if the base type isn't found
-func! s:GetTypeFromString(str)
+func! omnicpp#declare#FromString(str)
     let type = {'base' : '', 'pointer' : 0, 'array' : 0}
 
     let type.base = matchstr(a:str, s:reVarSubType)
