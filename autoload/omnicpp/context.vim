@@ -10,6 +10,8 @@ let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
 " Regex used for matching using-directives
 let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\ze\s*;'
 
+let s:cache = omnicpp#cache#Create()
+
 " Cache the list of using directives/declarations
 let s:cacheDir = omnicpp#cache#Create()
 let s:cacheDec = omnicpp#cache#Create()
@@ -25,39 +27,39 @@ let s:cacheDec = omnicpp#cache#Create()
 " that line number
 " @return List of using-directives, sanitized
 "
-func! omnicpp#ns#ParseDirectives(entry, ...)
+func! omnicpp#context#ParseDirectives(entry, ...)
     if type(a:entry) == type([])
         return s:ParseUsing(a:entry, s:reDirective, s:cacheDir)
     else
-        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, '^\s*'.s:reDirective, get(a:000,0,0)))
+        return s:ParseUsingCleanse(omnicpp#utils#Grep(a:entry, '^\s*'.s:reDirective, get(a:000,0,0)))
     endif
 endfunc
 
 " Parse the given file(s) for using-declarations (see ParseDirectives())
-func! omnicpp#ns#ParseDeclarations(entry, ...)
+func! omnicpp#context#ParseDeclarations(entry, ...)
     if type(a:entry) == type([])
         return s:ParseUsing(a:entry, s:reDeclaration, s:cacheDec)
     else
-        return s:ParseUsingCleanse(omnicpp#utils#VGrep(a:entry, '^\s*'.s:reDeclaration, get(a:000,0,0)))
+        return s:ParseUsingCleanse(omnicpp#utils#Grep(a:entry, '^\s*'.s:reDeclaration, get(a:000,0,0)))
     endif
 endfunc
 
 " Parse the current buffer up to the cursor's position for local/global
 " using-directives, as well as any included file, recursively.
-func! omnicpp#ns#CurrentDirectives()
+func! omnicpp#context#CurrentDirectives()
     let dirs = omnicpp#scope#MatchLocal(s:reDirective) + omnicpp#scope#MatchGlobal(s:reDirective)
     call map(dirs, 'substitute(v:val,"\\s\\+","","g")')
     let incs = omnicpp#include#CurrentBuffer()
-    return dirs + omnicpp#ns#ParseDirectives(incs)
+    return dirs + omnicpp#context#ParseDirectives(incs)
 endfunc
 
 " Parse the current buffer up to the cursor's position for local/global
 " using-declarations, as well as any included file, recursively.
-func! omnicpp#ns#CurrentDeclarations()
+func! omnicpp#context#CurrentDeclarations()
     let decs = omnicpp#scope#MatchLocal(s:reDeclaration) + omnicpp#scope#MatchGlobal(s:reDeclaration)
     call map(decs, 'substitute(v:val,"\\s\\+","","g")')
     let incs = omnicpp#include#CurrentBuffer()
-    return decs + omnicpp#ns#ParseDeclarations(incs)
+    return decs + omnicpp#context#ParseDeclarations(incs)
 endfunc
 
 " When inside a context definition/declaration, or when implementing a
@@ -66,7 +68,7 @@ endfunc
 "
 " @return List of namespaces
 "
-func! omnicpp#ns#CurrentContexts()
+func! omnicpp#context#CurrentContexts()
     let origPos = getpos('.')
     " For every context found, store its name, a binary type (0 for
     " namespaces, 1 otherwise), and using instructions up to the
@@ -83,8 +85,8 @@ func! omnicpp#ns#CurrentContexts()
             continue
         endif
 
-        let dec = map(omnicpp#ns#CurrentDeclarations(), 'split(v:val,"::")[-1]')
-        let dir = omnicpp#ns#CurrentDirectives()
+        let dec = map(omnicpp#context#CurrentDeclarations(), 'get(split(v:val,"::"),-1,"")')
+        let dir = omnicpp#context#CurrentDirectives()
         let inc = omnicpp#include#CurrentBuffer()
 
         " Class declaration
@@ -122,7 +124,7 @@ func! omnicpp#ns#CurrentContexts()
         let last = nest[0]
         if context.type
             let context.nest = nest
-            call extend(nest, omnicpp#ns#BaseClasses(context), 0)
+            call extend(nest, omnicpp#context#BaseClasses(context), 0)
         endif
 
         call insert(nest, empty(last) ? context['name'] : last.'::'.context['name'])
@@ -145,7 +147,7 @@ endfunc
 "
 " @return a list of inherited contexts, qualified
 "
-func! omnicpp#ns#BaseClasses(class)
+func! omnicpp#context#BaseClasses(class)
     " Unresolved class names
     let inherits = [a:class]
     " Qualified class names
@@ -167,10 +169,10 @@ func! omnicpp#ns#BaseClasses(class)
 
                     let nest = s:GetNest(context)
                     let inc = omnicpp#include#ParseRecursive(path, get(item,'line',0))
-                    let dir = omnicpp#ns#ParseDirectives(path, get(item,'line',0))
-                                \ + omnicpp#ns#ParseDirectives(inc)
-                    let dec = omnicpp#ns#ParseDeclarations(path, get(item,'line',0))
-                                \ + omnicpp#ns#ParseDeclarations(inc)
+                    let dir = omnicpp#context#ParseDirectives(path, get(item,'line',0))
+                                \ + omnicpp#context#ParseDirectives(inc)
+                    let dec = omnicpp#context#ParseDeclarations(path, get(item,'line',0))
+                                \ + omnicpp#context#ParseDeclarations(inc)
                     call map(dec, 'split(v:val,"::")[-1]')
 
                     for name in split(get(item,'inherits',''),',')
@@ -207,7 +209,7 @@ func! s:ParseUsing(entries, regexp, cache)
 
     for entry in a:entries
         if !a:cache.has(entry)
-            call a:cache.put(entry, omnicpp#utils#VGrep(entry, '^\s*'.a:regexp))
+            call a:cache.put(entry, omnicpp#utils#Grep(entry, '^\s*'.a:regexp))
         endif
         call extend(matches, a:cache.get(entry))
     endfor

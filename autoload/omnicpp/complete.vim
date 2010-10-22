@@ -74,8 +74,8 @@ func! s:CompleteMember(base)
         let type = omnicpp#declare#LocalType(parent)
         " TODO resolve type
         if empty(type)
-            let contexts = omnicpp#ns#CurrentContexts() + omnicpp#ns#CurrentDirectives()
-            let decs = omnicpp#ns#CurrentDeclarations()
+            let contexts = omnicpp#context#CurrentContexts() + omnicpp#context#CurrentDirectives()
+            let decs = omnicpp#context#CurrentDeclarations()
 
             for item in taglist('\V\C\^'.parent.s:reSuffix)
                 if omnicpp#tag#Visible(item, s:includes) &&
@@ -83,7 +83,7 @@ func! s:CompleteMember(base)
                             \ || omnicpp#tag#Declarations(item, decs))
                     " TODO this doesn't work for multi-lines declarations
                     let cmd = omnicpp#tag#Cmd(item)
-                    let type = omnicpp#declare#FromString(cmd)
+                    let type = omnicpp#declare#TypeFromString(cmd)
                     " TODO resolve type with using-instructions
                     break
                 endif
@@ -114,9 +114,9 @@ func! s:CompleteAny(base)
     let matches = omnicpp#declare#LocalVars(a:base)
 
     " List of contexts to search
-    let contexts = omnicpp#ns#CurrentDirectives() + omnicpp#ns#CurrentContexts()
+    let contexts = omnicpp#context#CurrentDirectives() + omnicpp#context#CurrentContexts()
     " List of imported members
-    let decs = omnicpp#ns#CurrentDeclarations()
+    let decs = omnicpp#context#CurrentDeclarations()
 
     " Look up unqualified names
     for item in taglist('\V\C\^'.a:base.s:reSuffix)

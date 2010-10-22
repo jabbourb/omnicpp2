@@ -99,8 +99,10 @@ endfunc
 "
 " @return List of matches
 "
-func! omnicpp#utils#VGrep(file, regex, ...)
+func! omnicpp#utils#Grep(file, regex, ...)
     let matches = []
+    " Throws an E315 error
+    "exe 'silent! lgrep' a:regex a:file
     exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
     for line in getloclist(0)
         if a:0 && a:1 && line.lnum > a:1 | break | endif

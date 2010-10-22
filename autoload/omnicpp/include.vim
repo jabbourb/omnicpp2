@@ -35,7 +35,7 @@ func! omnicpp#include#Parse(file, ...)
         return s:cache.get(a:file)
     endif
 
-    let includes = omnicpp#utils#VGrep(a:file, s:reInclude, get(a:000,0,0))
+    let includes = omnicpp#utils#Grep(a:file, s:reInclude, get(a:000,0,0))
     let pwd = '/'.join(split(a:file,'/')[:-2],'/')
     call s:ResolveIncludes(includes, pwd)
     " Don't update the cache for partial parses
