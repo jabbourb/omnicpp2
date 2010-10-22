@@ -31,7 +31,7 @@ endfunc
 " @return List of includes, expanded path
 "
 func! omnicpp#include#Parse(file, ...)
-    if s:cache.has(a:file)
+    if s:cache.has(a:file) && !a:0
         return s:cache.get(a:file)
     endif
 
