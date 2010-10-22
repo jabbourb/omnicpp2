@@ -7,59 +7,78 @@
 " The following regexes extract namespaces as XX::YY
 " Regex used for matching using-declarations
 let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
-" Regex used for matching using-directives
-let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\ze\s*;'
+" Regex used for matching using-directives; keep trailing ';' to
+" distinguish it from declarations when grepping
+let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\s*;'
 
-let s:cache = omnicpp#cache#Create()
+let s:reUsing = s:reDirective.'|'.s:reDeclaration
 
 " Cache the list of using directives/declarations
+let s:cache = omnicpp#cache#Create()
+
 let s:cacheDir = omnicpp#cache#Create()
 let s:cacheDec = omnicpp#cache#Create()
 
 " === Functions ========================================================
 
-" Parse the given file(s) for using-directives. If a single file is
-" passed, perform a partial parse using the optional argument without
-" updating the cache.
+" Parse the given file for using-instructions. If a line is specified,
+" perform a partial parse up to that position without updating the
+" cache.
 "
-" @param entry a single file or a list of files
-" @param ... for a single file, a non-zero argument will stop parsing at
+" @param file File to parse
+" @param ... A non-zero numeric argument will stop parsing at
 " that line number
-" @return List of using-directives, sanitized
+" @return List of using-instructions, sanitized. Using-declarations are
+" extracted as XX::YY, and using-directives as XX::YY::
 "
-func! omnicpp#context#ParseDirectives(entry, ...)
-    if type(a:entry) == type([])
-        return s:ParseUsing(a:entry, s:reDirective, s:cacheDir)
-    else
-        return s:ParseUsingCleanse(omnicpp#utils#Grep(a:entry, '^\s*'.s:reDirective, get(a:000,0,0)))
+func! omnicpp#context#File(file, ...)
+    if s:cache.has(a:file) && !a:0
+        return s:cache.get(a:file)
     endif
+
+    let reUsing = '^\s*'.s:reDeclaration.'|^\s*'.s:reDirective
+    let using = omnicpp#utils#Grep(a:file, reUsing, get(a:000,0,0))
+    call s:ParsePost(using)
+
+    if !a:0 | call s:cache.put(a:file, using) | endif
+    return using
 endfunc
 
-" Parse the given file(s) for using-declarations (see ParseDirectives())
-func! omnicpp#context#ParseDeclarations(entry, ...)
-    if type(a:entry) == type([])
-        return s:ParseUsing(a:entry, s:reDeclaration, s:cacheDec)
+" Parse the given file(s) recursively. If a single file is given, parse
+" that file for using-instructions and includes up to a given line, if
+" specified, then recursively parse those includes for contexts. If a
+" list of files is specified, simply parse those, ignoring any optional
+" argument.
+"
+" @param entry File or list of files to parse
+" @param ... In the case of a single file, a non-zero argument will stop
+" parsing that file on the specified line
+" @return List of using-instructions (see Parse())
+"
+func! omnicpp#context#FileRecursive(entry, ...)
+    if type(a:entry) == type('')
+        let matches = omnicpp#context#File(a:entry, get(a:000,0,0))
+        let files = omnicpp#include#ParseRecursive(a:entry, get(a:000,0,0))
     else
-        return s:ParseUsingCleanse(omnicpp#utils#Grep(a:entry, '^\s*'.s:reDeclaration, get(a:000,0,0)))
+        let matches = []
+        let files = copy(a:entry)
     endif
+
+    for file in reverse(files)
+        call extend(matches, omnicpp#context#File(file), 0)
+    endfor
+
+    return matches
 endfunc
 
-" Parse the current buffer up to the cursor's position for local/global
-" using-directives, as well as any included file, recursively.
-func! omnicpp#context#CurrentDirectives()
-    let dirs = omnicpp#scope#MatchLocal(s:reDirective) + omnicpp#scope#MatchGlobal(s:reDirective)
-    call map(dirs, 'substitute(v:val,"\\s\\+","","g")')
-    let incs = omnicpp#include#CurrentBuffer()
-    return dirs + omnicpp#context#ParseDirectives(incs)
+func! omnicpp#context#Buffer()
+    return s:LocalUsing() + s:GlobalUsing()
 endfunc
 
-" Parse the current buffer up to the cursor's position for local/global
-" using-declarations, as well as any included file, recursively.
-func! omnicpp#context#CurrentDeclarations()
-    let decs = omnicpp#scope#MatchLocal(s:reDeclaration) + omnicpp#scope#MatchGlobal(s:reDeclaration)
-    call map(decs, 'substitute(v:val,"\\s\\+","","g")')
+func! omnicpp#context#BufferRecursive()
+    let using = omnicpp#context#Buffer()
     let incs = omnicpp#include#CurrentBuffer()
-    return decs + omnicpp#context#ParseDeclarations(incs)
+    return using + omnicpp#context#ParseRecursive(incs)
 endfunc
 
 " When inside a context definition/declaration, or when implementing a
@@ -68,12 +87,15 @@ endfunc
 "
 " @return List of namespaces
 "
-func! omnicpp#context#CurrentContexts()
+func! omnicpp#context#Current()
     let origPos = getpos('.')
     " For every context found, store its name, a binary type (0 for
     " namespaces, 1 otherwise), and using instructions up to the
     " cursor's position.
     let contexts = []
+
+    let globalInc = omnicpp#include#FileRecursive(omnicpp#include#Global())
+    let globalUsing = s:GlobalUsing() + omnicpp#context#FileRecursive(globalInc)
 
     while searchpair('{','','}','bW','omnicpp#utils#IsCursorInCommentOrString()')
         let instruct = omnicpp#utils#ExtractInstruction()
@@ -85,15 +107,19 @@ func! omnicpp#context#CurrentContexts()
             continue
         endif
 
-        let dec = map(omnicpp#context#CurrentDeclarations(), 'get(split(v:val,"::"),-1,"")')
-        let dir = omnicpp#context#CurrentDirectives()
-        let inc = omnicpp#include#CurrentBuffer()
+        let localInc = omnicpp#include#FileRecursive (omnicpp#include#Local())
+
+        let using = s:LocalUsing +
+                    \ omnicpp#context#FileRecursive (localInc) +
+                    \ globalUsing
+        let inc = localInc + globalInc
+        call filter(using, 'count(using, v:val) == 1')
 
         " Class declaration
         let cls = matchstr(instruct, '\v<class>\s+\zs'.g:omnicpp#syntax#reIdSimple.'\ze\s*(:|$)')
         if !empty(cls)
             call insert(contexts, {'name' : cls, 'type' : 1,
-                        \ 'dec' : dec, 'dir' : dir, 'inc' : inc})
+                        \ 'using' : using, 'inc' : inc})
             continue
         endif
 
@@ -108,7 +134,7 @@ func! omnicpp#context#CurrentContexts()
                             \ instruct[:endPos],'\('.g:omnicpp#syntax#reIdSimple.'\s*::\s*)+\ze'.g:omnicpp#syntax#reIdSimple.'\s*$'),
                             \ '\s\+', '', 'g'), '::'))
                     call insert(contexts, {'name' : simpleContext, 'type' : 1,
-                                \ 'dec' : dec, 'dir' : dir, 'inc' : inc})
+                                \ 'using' : using, 'inc' : inc})
                 endfor
             endif
         endif
@@ -193,37 +219,21 @@ endfunc
 
 " === Auxiliary ========================================================
 
-" Parse a list of files for a given expression, using/updating the
-" cache. Spaces and duplicates are then removed.
-"
-" @param entries List of files to parse, usually obtained through
-" includes analysis
-" @param regexp Regexp to look for
-" @param cache Cache object to use (for up-to-date entries) or update
-" (for outdated/new entries)
-"
-" @return List of matches
-"
-func! s:ParseUsing(entries, regexp, cache)
-    let matches = []
-
-    for entry in a:entries
-        if !a:cache.has(entry)
-            call a:cache.put(entry, omnicpp#utils#Grep(entry, '^\s*'.a:regexp))
-        endif
-        call extend(matches, a:cache.get(entry))
-    endfor
-
-    return s:ParseUsingCleanse(matches)
+" Clean up the using-instructions by appending '::' to directives and
+" removing spaces.
+func! s:ParsePost(matches)
+    " Add '::' to using-directives
+    call map(a:matches, 'substitute(v:val, "\\s*;$", "::", "")')
+    " Remove spaces
+    return map(a:matches, 'substitute(v:val,"\\s\\+","","g")')
 endfunc
 
-" Clean up the using-instructions by removing spaces and filtering
-" duplicates.
-func! s:ParseUsingCleanse(matches)
-    " Remove spaces
-    call map(a:matches, 'substitute(v:val,"\\s\\+","","g")')
-    " Remove duplicates
-    return filter(a:matches, 'count(a:matches,v:val)==1')
+func! s:LocalUsing()
+    return s:ParsePost(omnicpp#scope#MatchLocal(s:reUsing))
+endfunc
+
+func! s:GlobalUsing()
+    return s:ParsePost(omnicpp#scope#MatchGlobal(s:reUsing))
 endfunc
 
 " Given a context string (xx::yy::zz), return all visible sub-contexts

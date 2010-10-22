@@ -10,18 +10,6 @@ let s:cache = omnicpp#cache#Create()
 
 " === Functions ========================================================
 
-" List #include directives in the current local scope up to the cursor's
-" position.
-function! omnicpp#include#LocalIncludes()
-    return omnicpp#scope#MatchLocal(s:reInclude)
-endfunc
-
-" List #include directives in the global scope up to the cursor's
-" position.
-function! omnicpp#include#GlobalIncludes()
-    return omnicpp#scope#MatchGlobal(s:reInclude)
-endfunc
-
 " Grep includes from a file, then resolve them relatively to the file's
 " parent directory (non-recursive). If a cache entry is present and
 " up-to-date, it is used instead of parsing the file, else the cache is
@@ -30,7 +18,7 @@ endfunc
 " @param file Full path of the file to be parsed
 " @return List of includes, expanded path
 "
-func! omnicpp#include#Parse(file, ...)
+func! omnicpp#include#File(file, ...)
     if s:cache.has(a:file) && !a:0
         return s:cache.get(a:file)
     endif
@@ -56,10 +44,10 @@ endfunc
 " @return List of includes visible from the input file, expanded
 " (caveat: see description)
 "
-func! omnicpp#include#ParseRecursive(entry, ...)
+func! omnicpp#include#FileRecursive(entry, ...)
     " Unparsed includes
     let includes = type(a:entry) == type('')
-                \ ? omnicpp#include#Parse(a:entry, get(a:000,0,0))
+                \ ? omnicpp#include#File(a:entry, get(a:000,0,0))
                 \ : copy(a:entry)
     " Resolved includes
     let visited = []
@@ -68,7 +56,7 @@ func! omnicpp#include#ParseRecursive(entry, ...)
         let inc = remove(includes,-1)
         call add(visited, inc)
 
-        for found in omnicpp#include#Parse(inc)
+        for found in omnicpp#include#File(inc)
             " Check for duplicates
             if index(visited, found) == -1
                 call add(includes, found)
@@ -79,17 +67,32 @@ func! omnicpp#include#ParseRecursive(entry, ...)
     return visited
 endfunc
 
+" List #include directives in the current local scope up to the cursor's
+" position.
+function! omnicpp#include#Local()
+    return s:ResolveIncludes(omnicpp#scope#MatchLocal(s:reInclude), expand('%:p:h'))
+endfunc
+
+" List #include directives in the global scope up to the cursor's
+" position.
+function! omnicpp#include#Global()
+    return s:ResolveIncludes(omnicpp#scope#MatchGlobal(s:reInclude), expand('%:p:h'))
+endfunc
+
+func! omnicpp#include#Buffer()
+    return omnicpp#include#Local() + omnicpp#include#Global()
+endfunc
+
 " List all includes visible from the current buffer up to the cursor's
 " position, by recursively parsing local and global includes before the
 " cursor.
 "
 " @return List of includes, expanded
 "
-func! omnicpp#include#CurrentBuffer()
+func! omnicpp#include#BufferRecursive()
     " We cannot cache those, since the cursor's position changes
-    let includes = omnicpp#include#LocalIncludes() + omnicpp#include#GlobalIncludes()
-    call s:ResolveIncludes(includes, expand('%:p:h'))
-    return omnicpp#include#ParseRecursive(includes)
+    let includes = omnicpp#include#Buffer()
+    return omnicpp#include#FileRecursive(includes)
 endfunc
 
 " === Auxiliary ========================================================
@@ -131,5 +134,5 @@ endfunc
 " list, and removes empty entries (includes that weren't found)
 func! s:ResolveIncludes(includes, currentDir)
     call map(a:includes, 's:ResolveInclude(v:val, a:currentDir)')
-    call filter(a:includes, '!empty(v:val)')
+    return filter(a:includes, '!empty(v:val)')
 endfunc
