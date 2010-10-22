@@ -4,11 +4,44 @@
 " === Data =============================================================
 
 " The regexp used to match includes
-let s:reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
+let g:omnicpp#include#reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
 " Cache, for every parsed file, the list of includes found
 let s:cache = omnicpp#cache#Create()
 
 " === Functions ========================================================
+
+" Resolve the filename referenced by an include directive by first
+" searching the current directory (for quoted includes), then the &path
+" variable.
+"
+" @param include the include name to resolve
+" @param currentDir the current directory (for resolving quoted
+" includes)
+" @return the filename string if found, or an empty string
+"
+func! omnicpp#include#Resolve(include, currentDir)
+    let path = ''
+    let names = [a:include[1:-2]]
+
+    " Search current directory for quoted includes
+    if a:include[0]=='"'
+        let path = get(split(globpath(a:currentDir, names[0]),'\n'), 0, '')
+        " Extension is optional for bracket includes
+    else
+        let names += [names[0].'.h', names[0].'.hpp']
+    endif
+
+    " Search &path for all includes
+    for inc in names
+        if empty(path)
+            let path = get(split(globpath(&path, inc),'\n'), 0, '')
+        else
+            break
+        endif
+    endfor
+
+    return path
+endfunc
 
 " Grep includes from a file, then resolve them relatively to the file's
 " parent directory (non-recursive). If a cache entry is present and
@@ -23,7 +56,7 @@ func! omnicpp#include#File(file, ...)
         return s:cache.get(a:file)
     endif
 
-    let includes = omnicpp#utils#Grep(a:file, s:reInclude, get(a:000,0,0))
+    let includes = omnicpp#utils#Grep(a:file, g:omnicpp#include#reInclude, get(a:000,0,0))
     let pwd = '/'.join(split(a:file,'/')[:-2],'/')
     call s:ResolveIncludes(includes, pwd)
     " Don't update the cache for partial parses
@@ -70,13 +103,13 @@ endfunc
 " List #include directives in the current local scope up to the cursor's
 " position.
 function! omnicpp#include#Local()
-    return s:ResolveIncludes(omnicpp#scope#MatchLocal(s:reInclude), expand('%:p:h'))
+    return s:ResolveIncludes(omnicpp#scope#MatchLocal(g:omnicpp#include#reInclude), expand('%:p:h'))
 endfunc
 
 " List #include directives in the global scope up to the cursor's
 " position.
 function! omnicpp#include#Global()
-    return s:ResolveIncludes(omnicpp#scope#MatchGlobal(s:reInclude), expand('%:p:h'))
+    return s:ResolveIncludes(omnicpp#scope#MatchGlobal(g:omnicpp#include#reInclude), expand('%:p:h'))
 endfunc
 
 func! omnicpp#include#Buffer()
@@ -97,42 +130,9 @@ endfunc
 
 " === Auxiliary ========================================================
 
-" Resolve the filename referenced by an include directive by first
-" searching the current directory (for quoted includes), then the &path
-" variable.
-"
-" @param include the include name to resolve
-" @param currentDir the current directory (for resolving quoted
-" includes)
-" @return the filename string if found, or an empty string
-"
-func! s:ResolveInclude(include, currentDir)
-    let path = ''
-    let names = [a:include[1:-2]]
-
-    " Search current directory for quoted includes
-    if a:include[0]=='"'
-        let path = get(split(globpath(a:currentDir, names[0]),'\n'), 0, '')
-        " Extension is optional for bracket includes
-    else
-        let names += [names[0].'.h', names[0].'.hpp']
-    endif
-
-    " Search &path for all includes
-    for inc in names
-        if empty(path)
-            let path = get(split(globpath(&path, inc),'\n'), 0, '')
-        else
-            break
-        endif
-    endfor
-
-    return path
-endfunc
-
 " Wrapper function around ResolveInclude; resolves all includes in a
 " list, and removes empty entries (includes that weren't found)
 func! s:ResolveIncludes(includes, currentDir)
-    call map(a:includes, 's:ResolveInclude(v:val, a:currentDir)')
+    call map(a:includes, 'omnicpp#include#Resolve(v:val, a:currentDir)')
     return filter(a:includes, '!empty(v:val)')
 endfunc

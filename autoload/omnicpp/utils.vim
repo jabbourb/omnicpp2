@@ -111,6 +111,9 @@ func! omnicpp#utils#Grep(file, regex, ...)
     return matches
 endfunc
 
+func! omnicpp#utils#ParentDir(file)
+    return '/'.join(split(a:file,'/')[:-2],'/')
+endfunc
 
 " Concatenate lines ending with a backslash
 func! s:JoinBackslash(lines)

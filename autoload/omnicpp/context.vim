@@ -11,7 +11,7 @@ let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
 " distinguish it from declarations when grepping
 let s:reDirective = '\C\v<using>\s+<namespace>\s+\zs\w+(\s*::\s*\w+)*\s*;'
 
-let s:reUsing = s:reDirective.'|'.s:reDeclaration
+let g:omnicpp#context#reUsing = s:reDirective.'|'.s:reDeclaration
 
 " Cache the list of using directives/declarations
 let s:cache = omnicpp#cache#Create()
@@ -216,6 +216,9 @@ func! omnicpp#context#BaseClasses(class)
     return qualified
 endfunc
 
+func! omnicpp#context#Sanitize(context)
+    return substitute(substitute(a:context, '\s*;$', '::', ''), '\s\+', '', 'g')
+endfunc
 
 " === Auxiliary ========================================================
 
