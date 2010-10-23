@@ -37,7 +37,7 @@ func! omnicpp#context#File(file, ...)
     endif
 
     let reUsing = '^\s*'.s:reDeclaration.'|^\s*'.s:reDirective
-    let using = omnicpp#utils#Grep(a:file, reUsing, get(a:000,0,0))
+    let using = omnicpp#parse#Grep(a:file, reUsing, get(a:000,0,0))
     call s:ParsePost(using)
 
     if !a:0 | call s:cache.put(a:file, using) | endif

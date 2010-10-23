@@ -89,27 +89,6 @@ func! omnicpp#utils#IsCursorInCommentOrString(...)
     return match(synIDattr(synID(line("."), col, 1), "name"), '\C\<cComment\|\<cCppString\|\<cString')>=0
 endfunc
 
-" Grep a regex from a file into the location list, then extract and
-" return the matching strings.
-"
-" @param file Full path to the file to be parsed
-" @param regex Regexp to be grepped
-" @param ... a non-zero numeric argument stops the search at the
-" specified line
-"
-" @return List of matches
-"
-func! omnicpp#utils#Grep(file, regex, ...)
-    let matches = []
-    " Throws an E315 error
-    "exe 'silent! lgrep' a:regex a:file
-    exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
-    for line in getloclist(0)
-        if a:0 && a:1 && line.lnum > a:1 | break | endif
-        let matches += [matchstr(line.text, a:regex)]
-    endfor
-    return matches
-endfunc
 
 func! omnicpp#utils#ParentDir(file)
     return '/'.join(split(a:file,'/')[:-2],'/')

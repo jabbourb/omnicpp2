@@ -10,11 +10,43 @@ let s:cache = {}
 
 let s:reData = g:omnicpp#include#reInclude.'\|'.g:omnicpp#context#reUsing
 
+" Grep a regex from a file into the location list, then extract and
+" return the matching strings.
+"
+" @param file Full path to the file to be parsed
+" @param regex Regexp to be grepped
+" @param ... a non-zero numeric argument stops the search at the
+" specified line
+"
+" @return List of matches
+"
+func! omnicpp#parse#Grep(file, regex, ...)
+    let matches = []
+    " Throws an E315 error
+    "exe 'silent! lgrep' a:regex a:file
+    exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
+    for line in getloclist(0)
+        if a:0 && a:1 && line.lnum > a:1 | break | endif
+        let matches += [matchstr(line.text, a:regex)]
+    endfor
+    return matches
+endfunc
+
+" Parse a single file for includes and using-instructions; if a numeric
+" argument is given, parse up to that line. File access is cached,
+" except for partial parses.
+"
+" @param filename File to parse
+" @param ... a non-zero numeric argument stops the parsing at the
+" specified line
+"
+" @return List of includes and using-instructions, ordered
+"
 func! omnicpp#parse#File(filename,...)
     if s:CacheHas(a:filename) && !a:0
         return s:cache[a:filename].data
     else
-        let data = omnicpp#utils#Grep(a:filename, s:reData, get(a:000,0,0))
+        let data = omnicpp#parse#Grep(a:filename, s:reData, get(a:000,0,0))
         let data = s:ParsePost(data, omnicpp#utils#ParentDir(a:filename))
         " Don't cache partial parses
         if !a:0
@@ -24,6 +56,37 @@ func! omnicpp#parse#File(filename,...)
         return data
     endif
 endfunc
+
+" Recursively parse a file for includes and using-instructions.
+" Internally, we build a graph around file dependencies, then extract
+" the data by walking through that graph. Includes appear only the first
+" time, while using-instructions are not filtered.
+"
+" @param filename File to parse
+" @return List of includes and using-instructions, ordered
+"
+func omnicpp#parse#Recursive(filename)
+    let graph = omnicpp#graph#Graph(a:filename)
+
+    let nextNode = graph.next()
+    let visited = []
+    while !empty(nextNode)
+        " Parse new includes and add their content to the graph
+        if nextNode.data[0] == '/' && index(visited, nextNode.data) == -1
+            call nextNode.addChildren(omnicpp#parse#File(nextNode.data))
+            call add(visited, nextNode.data)
+        elseif nextNode.data[0] != '/'
+            call add(visited, nextNode.data)
+        endif
+
+        let nextNode = graph.next()
+    endwhile
+
+    return visited
+endfunc
+
+
+" === Auxiliary ========================================================
 
 func! s:CacheHas(filename)
     return has_key(s:cache, a:filename) && s:cache[a:filename].ftime == getftime(a:filename)
