@@ -18,17 +18,22 @@ let s:reData = g:omnicpp#include#reInclude.'\|'.g:omnicpp#context#reUsing
 " @param ... a non-zero numeric argument stops the search at the
 " specified line
 "
-" @return List of matches
+" @return List of matches; every match is a dictionary with keys:
+" - text: the grepped text
+" - line: the line number the match appears at in the file
 "
 func! omnicpp#parse#Grep(file, regex, ...)
     let matches = []
     " Throws an E315 error
     "exe 'silent! lgrep' a:regex a:file
     exe 'noau silent! lvimgrep /'.a:regex.'/gj '.a:file
+
     for line in getloclist(0)
         if a:0 && a:1 && line.lnum > a:1 | break | endif
-        let matches += [matchstr(line.text, a:regex)]
+        call add(matches, {'text' : matchstr(line.text, a:regex),
+                    \ 'line' : line.lnum})
     endfor
+
     return matches
 endfunc
 
@@ -46,14 +51,14 @@ func! omnicpp#parse#File(filename,...)
     if s:CacheHas(a:filename) && !a:0
         return s:cache[a:filename].data
     else
-        let data = omnicpp#parse#Grep(a:filename, s:reData, get(a:000,0,0))
-        let data = s:ParsePost(data, omnicpp#utils#ParentDir(a:filename))
+        let matches = omnicpp#parse#Grep(a:filename, s:reData, get(a:000,0,0))
+        call s:ParsePost(matches, omnicpp#utils#ParentDir(a:filename))
         " Don't cache partial parses
         if !a:0
             let s:cache[a:filename] = {'ftime' : getftime(a:filename),
-                        \ 'data' : data}
+                        \ 'data' : matches}
         endif
-        return data
+        return matches
     endif
 endfunc
 
@@ -99,21 +104,11 @@ endfunc
 
 " Process the grepped data: resolve includes and sanitize
 " using-instructions
-func! s:ParsePost(data,pwd)
-    let results = []
-
-    for item in a:data
-        if item[0] == '"' || item[0] == '<'
-            " Resolve includes
-            let resolved = omnicpp#include#Resolve(item,a:pwd)
-            if !empty(resolved)
-                call add(results, resolved)
-            endif
-        else
-            " Sanitize using-instructions
-            call add(results, omnicpp#context#Sanitize(item))
-        endif
+func! s:ParsePost(matches,pwd)
+    for item in a:matches
+        let item.text = (item.text[0] == '"' || item.text[0] == '<')
+                    \ ? omnicpp#include#Resolve(item.text,a:pwd)
+                    \ : omnicpp#context#Sanitize(item.text)
     endfor
-
-    return results
+    call filter(a:matches, '!empty(v:val.text)')
 endfunc
