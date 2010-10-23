@@ -45,15 +45,15 @@ endfunc
 " @param root the data the root node holds
 " @return A graph has the following entries:
 " - root: the node at the top of the graph's hierarchy.
-" - current: internal variable; the node we are currently at when
-"   walking through the graph.
+" - current: the node we are currently at when walking through the
+"   graph (initially the root node).
 " - next(): see graph#Next()
 "
 func! omnicpp#graph#Graph(root)
     let rootNode = omnicpp#graph#Node(0, a:root)
 
     return {'root' : rootNode,
-                \ 'current' : {},
+                \ 'current' : rootNode,
                 \ 'next' : function('omnicpp#graph#Next')}
 endfunc
 
@@ -68,26 +68,20 @@ endfunc
 func! omnicpp#graph#Next() dict
     let nextNode = {}
 
-    if empty(self.current)
-        " First invocation, graph with only a root node
-        let nextNode = self.root
-
-    elseif !empty(self.current.children)
+    if !empty(self.current.children)
         " First look for child nodes
         let nextNode = self.current.children[0]
-
     else
         " We will only update the 'current' field if the next node
         " exists
         let current = self.current
         " Keep rewinding until we reach the root node
         while current != self.root
-            " Look for subsequent nodes at the same level (subsequent
-            " data in the same parent file)
+            " Look for subsequent nodes at the same level
             if current.idx < len(current.parent.children)-1
                 let nextNode = current.parent.children[current.idx+1]
                 break
-            " No adjacent nodes: rewind one level
+            " No subsequent siblings: rewind one level
             else
                 let current = current.parent
             endif

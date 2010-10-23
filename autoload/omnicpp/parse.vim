@@ -51,7 +51,7 @@ func! omnicpp#parse#File(filename,...)
         " Don't cache partial parses
         if !a:0
             let s:cache[a:filename] = {'ftime' : getftime(a:filename),
-                    \ 'data' : data}
+                        \ 'data' : data}
         endif
         return data
     endif
@@ -63,23 +63,27 @@ endfunc
 " time, while using-instructions are not filtered.
 "
 " @param filename File to parse
+" @param ... a non-zero numeric argument stops parsing the main file at
+" the specified line
+"
 " @return List of includes and using-instructions, ordered
 "
-func omnicpp#parse#Recursive(filename)
+func! omnicpp#parse#Recursive(filename,...)
     let graph = omnicpp#graph#Graph(a:filename)
+    call graph.root.addChildren(omnicpp#parse#File(graph.root.data, get(a:000,0,0)))
+    let visited = [a:filename]
 
-    let nextNode = graph.next()
-    let visited = []
-    while !empty(nextNode)
+    while !empty(graph.next())
+        let data = graph.current.data
         " Parse new includes and add their content to the graph
-        if nextNode.data[0] == '/' && index(visited, nextNode.data) == -1
-            call nextNode.addChildren(omnicpp#parse#File(nextNode.data))
-            call add(visited, nextNode.data)
-        elseif nextNode.data[0] != '/'
-            call add(visited, nextNode.data)
+        if data[0] == '/'
+            if index(visited, data) == -1
+                call graph.current.addChildren(omnicpp#parse#File(data))
+                call add(visited, data)
+            endif
+        else
+            call add(visited, data)
         endif
-
-        let nextNode = graph.next()
     endwhile
 
     return visited
@@ -88,10 +92,13 @@ endfunc
 
 " === Auxiliary ========================================================
 
+" Check if an entry exists in the cache and is up-to-date
 func! s:CacheHas(filename)
     return has_key(s:cache, a:filename) && s:cache[a:filename].ftime == getftime(a:filename)
 endfunc
 
+" Process the grepped data: resolve includes and sanitize
+" using-instructions
 func! s:ParsePost(data,pwd)
     let results = []
 
