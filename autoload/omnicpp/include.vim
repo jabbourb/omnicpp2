@@ -5,8 +5,6 @@
 
 " The regexp used to match includes
 let g:omnicpp#include#reInclude = '\C#\s*include\s\+\zs[<"].\{-1,}[>"]'
-" Cache, for every parsed file, the list of includes found
-let s:cache = omnicpp#cache#Create()
 
 " === Functions ========================================================
 
@@ -44,25 +42,17 @@ func! omnicpp#include#Resolve(include, currentDir)
 endfunc
 
 " Grep includes from a file, then resolve them relatively to the file's
-" parent directory (non-recursive). If a cache entry is present and
-" up-to-date, it is used instead of parsing the file, else the cache is
-" updated.
+" parent directory (non-recursive). This is a wrapper around
+" parse#File().
 "
-" @param file Full path of the file to be parsed
+" @param file Path of file to be parsed
+" @param ... a non-zero argument stops parsing the file at a specific
+" line
+"
 " @return List of includes, expanded path
 "
 func! omnicpp#include#File(file, ...)
-    if s:cache.has(a:file) && !a:0
-        return s:cache.get(a:file)
-    endif
-
-    let includes = omnicpp#parse#Grep(a:file, g:omnicpp#include#reInclude, get(a:000,0,0))
-    let pwd = '/'.join(split(a:file,'/')[:-2],'/')
-    call s:ResolveIncludes(includes, pwd)
-    " Don't update the cache for partial parses
-    if !a:0 | call s:cache.put(a:file, includes) | endif
-
-    return includes
+    return map(filter(copy(omnicpp#parse#File(a:file, get(a:000,0,0))),'v:val.text[0]=="/"'),'v:val.text')
 endfunc
 
 " Parse a file (or list of files) recursively. The behavior differs
@@ -74,6 +64,7 @@ endfunc
 " @param entry path of the file to be parsed, or list of paths
 " @param ... when given a single file, a non-zero numeric argument stops
 " parsing that file at the specified line
+"
 " @return List of includes visible from the input file, expanded
 " (caveat: see description)
 "
