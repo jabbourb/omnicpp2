@@ -5,7 +5,7 @@
 " and using-declarations.
 
 " Keys are complete filenames; for every entry, store its modification
-" time, and the parsed data.
+" time ('ftime'), and the parsed data ('matches').
 let s:cache = {}
 
 let s:reData = g:omnicpp#include#reInclude.'\|'.g:omnicpp#context#reUsing
@@ -48,15 +48,13 @@ endfunc
 " @return List of includes and using-instructions, ordered
 "
 func! omnicpp#parse#File(filename,...)
-    if s:CacheHas(a:filename) && !a:0
-        return s:cache[a:filename].data
+    if s:CacheHas(a:filename) && !(a:0 && a:1)
+        return s:cache[a:filename].matches
     else
         let matches = omnicpp#parse#Grep(a:filename, s:reData, get(a:000,0,0))
         call s:ParsePost(matches, omnicpp#utils#ParentDir(a:filename))
-        " Don't cache partial parses
-        if !a:0
-            let s:cache[a:filename] = {'ftime' : getftime(a:filename),
-                        \ 'data' : matches}
+        if !(a:0 && a:1)
+            let s:cache[a:filename] = {'ftime' : getftime(a:filename), 'matches' : matches}
         endif
         return matches
     endif
