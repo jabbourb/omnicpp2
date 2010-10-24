@@ -65,35 +65,46 @@ endfunc
 " Recursively parse a file for includes and using-instructions.
 " Internally, we build a graph around file dependencies, then extract
 " the data by walking through that graph. Includes appear only the first
-" time, while using-instructions are not filtered.
+" time, while using-instructions are neither filtered, nor resolved.
 "
 " @param filename File to parse
 " @param ... a non-zero numeric argument stops parsing the main file at
 " the specified line
 "
-" @return List of includes and using-instructions, ordered
+" @return Dictionary with 2 entries:
+" - using: List of objects representing using-instructions, with fields:
+"   - text: Text of the using-instruction
+"   - complete: List of includes that are completely visible at the
+"     instruction's location, as well as preceding using-instructions
+"   - partial: List of file objects as returned by Grep(); every file is
+"     visible up to the 'line' field. This is used for looking up
+"     visible declarations when resolving using-instructions.
+" - include: List of all includes, recursive, excluding the input file
 "
 func! omnicpp#parse#Recursive(filename,...)
+    " List of using-instructions
+    let usingL = []
+
     let graph = omnicpp#graph#Graph(a:filename)
-    call graph.root.addChildren(omnicpp#parse#File(graph.root.data, get(a:000,0,0)))
-    let visited = [a:filename]
+    call graph.root.addChildren(omnicpp#parse#File(graph.root.text, get(a:000,0,0)))
 
     while !empty(graph.next())
-        let data = graph.current.data
+        let text = graph.current.text
         " Parse new includes and add their content to the graph
-        if data[0] == '/'
-            if index(visited, data) == -1
-                call graph.current.addChildren(omnicpp#parse#File(data))
-                call add(visited, data)
-            endif
+        if text[0] == '/'
+            call graph.current.addChildren(omnicpp#parse#File(text))
         else
-            call add(visited, data)
+            let using = {}
+            let using.text = text
+            let using.complete = copy(graph.complete)
+            let using.partial = graph.current.path
+            call add(usingL, using)
         endif
     endwhile
 
-    return visited
+    " Remove root file from list of includes
+    return {'using' : usingL, 'include' : filter(graph.complete, 'v:val[0]=="/"')[:-2]}
 endfunc
-
 
 " === Auxiliary ========================================================
 
