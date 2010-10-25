@@ -69,7 +69,7 @@ endfunc
 "
 func! omnicpp#declare#LocalType(var)
     " Last match takes precedence
-    return omnicpp#declare#TypeFromString(get(omnicpp#scope#MatchLocal(s:reVarMasterPre.a:var.s:reVarMasterPost), -1, ''))
+    return omnicpp#declare#TypeFromString(get(omnicpp#parse#Local(s:reVarMasterPre.a:var.s:reVarMasterPost), -1, ''))
 endfunc
 
 " Search for variables whose name matches a given base and declared in
@@ -79,7 +79,7 @@ endfunc
 " @return List of matching names
 "
 func! omnicpp#declare#LocalVars(base)
-    let vars = omnicpp#scope#MatchLocal(s:reVarMasterPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
+    let vars = omnicpp#parse#Local(s:reVarMasterPre.'\zs'.a:base.'\v(\w|\d|\$)*>')
     " Filter duplicates
     return filter(vars, 'count(vars,v:val)==1')
 endfunc

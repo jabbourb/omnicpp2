@@ -94,13 +94,13 @@ endfunc
 " List #include directives in the current local scope up to the cursor's
 " position.
 function! omnicpp#include#Local()
-    return s:ResolveIncludes(omnicpp#scope#MatchLocal(g:omnicpp#include#reInclude), expand('%:p:h'))
+    return s:ResolveIncludes(omnicpp#parse#Local(g:omnicpp#include#reInclude), expand('%:p:h'))
 endfunc
 
 " List #include directives in the global scope up to the cursor's
 " position.
 function! omnicpp#include#Global()
-    return s:ResolveIncludes(omnicpp#scope#MatchGlobal(g:omnicpp#include#reInclude), expand('%:p:h'))
+    return s:ResolveIncludes(omnicpp#parse#Global(g:omnicpp#include#reInclude), expand('%:p:h'))
 endfunc
 
 func! omnicpp#include#Buffer()

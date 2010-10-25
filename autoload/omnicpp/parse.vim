@@ -1,14 +1,64 @@
 " Author: Bassam JABBOUR
-" Description: A file parser backed by a cache. When asked for a file,
-" it will retrieve it from the cache if it exists and is up-to-date,
-" else it will parse it anew. Currently, files are parsed for includes
-" and using-declarations.
+" Description: Buffer and file parsing routines. File parsing is backed
+" up by a cache; when asked for a file, it will retrieve it from the
+" cache if it exists and is up-to-date, else it will parse it anew.
+" Currently, we search for includes and using-instructions.
+
+" === Data =============================================================
 
 " Keys are complete filenames; for every entry, store its modification
 " time ('ftime'), and the parsed data ('matches').
 let s:cache = {}
 
-let s:reData = g:omnicpp#include#reInclude.'\|'.g:omnicpp#context#reUsing
+" The data to grep, ORed.
+let g:omnicpp#parse#reData = g:omnicpp#include#reInclude.'\|'.g:omnicpp#context#reUsing
+
+" === Buffer functions =================================================
+
+" Builds a list of matches against a given regex in the current
+" local scope up to the cursor's position; the strings are extracted by
+" matching between the beginning and end of the regex.  If we are in
+" global scope, returns an empty list.
+"
+" The parsed code is sanitized first, and all sub-blocks (that do not
+" encompass the cursor) are skipped. Since all lines are concatenated,
+" regexes cannot use the '^' and '$' characters anymore. Sanitizing the
+" code before matching the regexes allows us to not worry about comments
+" and the like inside a regexp.
+"
+" @param regex the regex used for finding matches
+" @return list of matched strings
+"
+function! omnicpp#parse#Local(regex)
+    " Start of local scope
+    let localStop = searchpairpos('{', '', '}', 'bnrW', 'omnicpp#utils#IsCursorInCommentOrString()')
+    if localStop != [0,0]
+        let sanitized = s:SanitizeJump(localStop)
+        return s:SequentialMatch(sanitized, a:regex)
+    endif
+    " If we are in global scope, do nothing
+    return []
+endfunc
+
+" Builds a list of matches against a regex in the global scope of
+" the current buffer up to the cursor's position; the strings are
+" extracted by matching between the beginning and end of the regex.
+"
+" (see MatchLocal() for details)
+"
+" @param regex the regex used for finding matches
+" @return list of matched strings
+"
+function! omnicpp#parse#Global(regex)
+    let origPos = getpos('.')
+    " Get out of local block, if any
+    call searchpair('{', '', '}', 'brW', 'omnicpp#utils#IsCursorInCommentOrString()')
+    let sanitized = s:SanitizeJump([1,0])
+    call setpos('.', origPos)
+    return s:SequentialMatch(sanitized, a:regex)
+endfunc
+
+" === File functions ===================================================
 
 " Grep a regex from a file into the location list, then extract and
 " return the matching strings.
@@ -45,13 +95,13 @@ endfunc
 " @param ... a non-zero numeric argument stops the parsing at the
 " specified line
 "
-" @return List of includes and using-instructions, ordered
+" @return see Grep()
 "
 func! omnicpp#parse#File(filename,...)
     if s:CacheHas(a:filename) && !(a:0 && a:1)
         return s:cache[a:filename].matches
     else
-        let matches = omnicpp#parse#Grep(a:filename, s:reData, get(a:000,0,0))
+        let matches = omnicpp#parse#Grep(a:filename, g:omnicpp#parse#reData, get(a:000,0,0))
         call s:ParsePost(matches, omnicpp#utils#ParentDir(a:filename))
         if !(a:0 && a:1)
             let s:cache[a:filename] = {'ftime' : getftime(a:filename), 'matches' : matches}
@@ -60,51 +110,62 @@ func! omnicpp#parse#File(filename,...)
     endif
 endfunc
 
-" Recursively parse a file for includes and using-instructions.
-" Internally, we build a graph around file dependencies, then extract
-" the data by walking through that graph. Includes appear only the first
-" time, while using-instructions are neither filtered, nor resolved.
-"
-" @param filename File to parse
-" @param ... a non-zero numeric argument stops parsing the main file at
-" the specified line
-"
-" @return Dictionary with 2 entries:
-" - using: List of objects representing using-instructions, with fields:
-"   - text: Text of the using-instruction
-"   - complete: List of includes that are completely visible at the
-"     instruction's location, as well as preceding using-instructions
-"   - partial: List of file objects as returned by Grep(); every file is
-"     visible up to the 'line' field. This is used for looking up
-"     visible declarations when resolving using-instructions.
-" - include: List of all includes, recursive, excluding the input file
-"
-func! omnicpp#parse#Recursive(filename,...)
-    " List of using-instructions
-    let usingL = []
+" === Auxiliary ========================================================
 
-    let graph = omnicpp#graph#Graph(a:filename)
-    call graph.root.addChildren(omnicpp#parse#File(graph.root.text, get(a:000,0,0)))
+" Extract the code from the current position up to a given position,
+" jumping over sub-blocks and removing comments.
+"
+" @param stopPos the upper limit for the text to extract, exclusive (the
+" lower being the current cursor position)
+" @return a string built by concatenating useful lines
+"
+func! s:SanitizeJump(stopPos)
+    let origPos = getpos('.')
+    let sanitized = ''
+    let lastPos = origPos[1:2]
 
-    while !empty(graph.next())
-        let text = graph.current.text
-        " Parse new includes and add their content to the graph
-        if text[0] == '/'
-            call graph.current.addChildren(omnicpp#parse#File(text))
-        else
-            let using = {}
-            let using.text = text
-            let using.complete = copy(graph.complete)
-            let using.partial = graph.current.path
-            call add(usingL, using)
+    while search('}', 'bW', a:stopPos[0])
+        " If we went beyond the start position, rewind the cursor
+        " position and exit
+        if getpos('.')[1] == a:stopPos[0] && getpos('.')[2] < a:stopPos[1]
+            setpos('.', [0]+lastPos+[0])
+            break
+        endif
+
+        " Jump over comments and strings
+        if omnicpp#utils#IsCursorInCommentOrString() | continue | endif
+
+        let sanitized = omnicpp#utils#ExtractCode(getpos('.')[1:2], lastPos, 1).' '.sanitized
+        " Jump over sub-blocks
+        if searchpair('{', '', '}', 'bW', 'omnicpp#utils#IsCursorInCommentOrString()')
+            let lastPos = getpos('.')[1:2]
         endif
     endwhile
 
-    " Remove root file from list of includes
-    return {'using' : usingL, 'include' : filter(graph.complete, 'v:val[0]=="/"')[:-2]}
+    call setpos('.', origPos)
+    " We still need to add the text up to the beginning
+    return omnicpp#utils#ExtractCode(a:stopPos, lastPos, 1).' '.sanitized
 endfunc
 
-" === Auxiliary ========================================================
+" Match a string against a given regexp sequentially, every search
+" starting where the previous match ended.
+"
+" @return list of matches
+"
+func! s:SequentialMatch(string, regex)
+    let matches = []
+    " Head pointer
+    let head = 0
+    while 1
+        let matchStart = match(a:string, a:regex, head)
+        if matchStart == -1 | break | endif
+        let matchEnd = matchend(a:string, a:regex, head)
+
+        call add(matches, strpart(a:string, matchStart, matchEnd-matchStart))
+        let head = matchEnd
+    endwhile
+    return matches
+endfunc
 
 " Check if an entry exists in the cache and is up-to-date
 func! s:CacheHas(filename)
