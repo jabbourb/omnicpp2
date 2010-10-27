@@ -11,7 +11,7 @@
 let s:cache = {}
 
 " The data to grep, ORed.
-let g:omnicpp#parse#reData = g:omnicpp#include#reInclude.'\|'.g:omnicpp#context#reUsing
+let g:omnicpp#parse#reData = '^\s*'.g:omnicpp#include#reInclude.'\|'.g:omnicpp#using#reUsing
 
 " === Buffer functions =================================================
 
@@ -178,7 +178,7 @@ func! s:ParsePost(matches,pwd)
     for item in a:matches
         let item.text = (item.text[0] == '"' || item.text[0] == '<')
                     \ ? omnicpp#include#Resolve(item.text,a:pwd)
-                    \ : omnicpp#context#Sanitize(item.text)
+                    \ : omnicpp#using#Sanitize(item.text)
     endfor
     call filter(a:matches, '!empty(v:val.text)')
 endfunc
