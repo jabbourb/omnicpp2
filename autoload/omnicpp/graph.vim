@@ -129,12 +129,13 @@ endfunc
 " === Task-specific ====================================================
 
 " A predicate for validating nodes in a parsing graph. A node is valid
-" if it is not an include, or otherwise if it has not already been
-" visited prior to the current node (includes are parsed only once).
+" if it is not empty, and it is not an include or otherwise if it has
+" not already been visited prior to the current node (includes are
+" parsed only once).
 "
 " @param node Node to check
 " @return 1 for a valid node, 0 otherwise
 "
 func! omnicpp#graph#FilterIncludes(node) dict
-    return a:node.text[0] != '/' || !self.isVisited(a:node)
+    return !empty(a:node.text) && (a:node.text[0] != '/' || !self.isVisited(a:node))
 endfunc

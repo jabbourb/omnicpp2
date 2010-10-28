@@ -29,7 +29,7 @@ let g:omnicpp#using#reUsing = '^\s*'.s:reDeclaration.'|^\s*'.s:reDirective
 func! omnicpp#using#FileRecursive(filename,...)
     let graph = omnicpp#graph#Graph(a:filename)
     call graph.root.addChildren(omnicpp#parse#File(graph.root.text, get(a:000,0,0)))
-    return s:ResolveInstructions(s:FromGraph(graph))
+    return s:FromGraph(graph)
 endfunc
 
 " Sanitize an extracted using-instruction. Spaces are removed, and
@@ -71,7 +71,12 @@ func! s:FromGraph(graph)
             let using.text = text
             let using.complete = copy(a:graph.complete)
             let using.partial = a:graph.current.path
-            call add(usingL, using)
+
+            let resolved = s:ResolveInstruction(using)
+            " Update the graph so that subsequent nodes see the resolved
+            " instruction
+            let a:graph.current.text = resolved
+            if !empty(resolved) | call add(usingL, resolved) | endif
         endif
     endwhile
 
@@ -85,67 +90,59 @@ endfunc
 " @return List of tag items, each representing a resolved, unambiguous
 " using-instruction
 "
-func!  s:ResolveInstructions(usingL)
-    let resolved = []
+func!  s:ResolveInstruction(using)
+    let matches = []
 
-    for using in a:usingL
-        let matches = []
+    if a:using.text[0] == ':'
+        " using-directive
+        let name = a:using.text[2:]
+        let kind = 'n'
+    else
+        " using-declaration
+        let name = a:using.text
+        " Match any object type
+        let kind = ''
+    endif
 
-        if using.text[0] == ':'
-            " Using-directive
-            let name = using.text[2:]
-            let kind = 'n'
-        else
-            " Using-declaration
-            let name = using.text
-            " Match any object type
-            let kind = ''
+    let tagQuery = '\V\C\^\('.name
+    for context in a:using.complete
+        " Only preceding a:using-directives can be used to form the
+        " unmatched prefix; since all preceding instructions have
+        " already been resolved, we don't concatenate.
+        if context[0] == ':'
+            let tagQuery .= '\|'.context[2:].'::'.name
         endif
+    endfor
+    let tagQuery .= '\)\$'
 
-        let prefix = split(name,'::')[:-2]
-        let dirs = filter(copy(using.complete),'v:val[0]==":"')
-
-        " Warning: matching against the full name, and not only the
-        " last part, requires tags to be generated using '--extra=+q'
-        for item in taglist('\V\C'.name.'\$')
-            if s:IsVisible(using, item) && (empty(kind) || item.kind == kind)
-                " The prefix context that is not included in the
-                " using-instruction's text
-                let unmatched = split(omnicpp#tag#Context(item),'::')[:-len(prefix)-1]
-
-                " Only preceding using-directives can be combined to
-                " form the unmatched prefix
-                for dir in dirs
-                    if empty(unmatched) | break | endif
-                    let subdirs = split(dir,'::')
-                    if subdirs == unmatched[:len(subdirs)-1]
-                        let unmatched = unmatched[len(subdirs) :]
-                    endif
-                endfor
-
-                " The full prefix matched, context was resolved
-                if empty(unmatched) | call add(matches,item) | endif
-            endif
-        endfor
-
-        " Ambiguous contexts are not kept
-        call s:FilterDuplicates(matches)
-        if len(matches) == 1
-            call add(resolved, ((matches[0].kind=='n')?'::':'').matches[0].name)
+    for item in taglist(tagQuery)
+        if s:TagMatch(a:using, item) && (empty(kind) || item.kind == kind)
+            call add(matches,item)
         endif
     endfor
 
-    return resolved
+    " Ambiguous contexts are not kept
+    call s:FilterDuplicates(matches)
+    if len(matches) == 1
+        return ((matches[0].kind=='n')?'::':'').matches[0].name
+    endif
+
+    return ''
 endfunc
 
-" Check if a tag is reachable using a list of included/partial files.
+" Check that a tag is reachable using a list of included/partial files,
+" and that the full context is already in the tag's name.
 "
 " @param using Using-instruction object, see s:FromGraph()
 " @param tag Tag object to check
 "
-" @return 1 if the tag is visible, 0 otherwise
+" @return 1 if the tag is valid, 0 otherwise
 "
-func! s:IsVisible(using,tag)
+func! s:TagMatch(using,tag)
+    if match(a:tag.name, omnicpp#tag#Context(a:tag)) != 0
+        return 0
+    endif
+
     let path = omnicpp#tag#Path(a:tag)
 
     if index(a:using.complete, path) >= 0 | return 1 | endif
