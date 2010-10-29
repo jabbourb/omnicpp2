@@ -21,9 +21,9 @@ Caveats
   might take quite some time to complete, especially for includes in
   large projects.
 - Tags should be generated with the "+n" field to improve accuracy (it
-  will still work otherwise, not as well though); furthermore, the use
-  of '--extra=+q' has been forced down as it speeds up tag searches by
-  narrowing down the results.
+  will still work otherwise, not as well though); on the other hand, we
+  passed on the '--extra=+q' option since profiling has shown it didn't
+  speed up tag searches.
 - Current buffer code is tokenized, but file greps are not, and are
   still unable to match instructions spanning multiple lines or detect
   comments/strings.
