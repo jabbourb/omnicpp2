@@ -95,84 +95,77 @@ func!  s:ResolveInstruction(using)
 
     if a:using.text[0] == ':'
         " using-directive
-        let name = a:using.text[2:]
+        let text = a:using.text[2:]
         let kind = 'n'
     else
         " using-declaration
-        let name = a:using.text
+        let text = a:using.text
         " Match any object type
         let kind = ''
     endif
 
-    let tagQuery = '\V\C\^\('.name
-    for context in a:using.complete
-        " Only preceding a:using-directives can be used to form the
-        " unmatched prefix; since all preceding instructions have
-        " already been resolved, we don't concatenate.
-        if context[0] == ':'
-            let tagQuery .= '\|'.context[2:].'::'.name
-        endif
-    endfor
-    let tagQuery .= '\)\$'
+    " Last part of the using-instruction's text
+    let name = split(text,'::')[-1]
+    " Prefix context appearing in the using-instruction's text
+    let context = join(split(text,'::')[:-2],'::')
 
-    for item in taglist(tagQuery)
-        if s:TagMatch(a:using, item) && (empty(kind) || item.kind == kind)
-            call add(matches,item)
+    " List of includes
+    let incs = filter(copy(a:using.complete), 'v:val[0]=="/"')
+    " Append the prefix context to the list of using-directives
+    let dirs = map(filter(copy(a:using.complete), 'v:val[0]==":"'),'v:val[2:]."::".context')
+
+    for item in taglist('\V\C\^'.name.'\$')
+        if s:TagVisible(item, incs, a:using.partial, context, dirs) &&
+                    \ (empty(kind) || item.kind == kind)
+            call add(matches, item)
         endif
     endfor
 
     " Ambiguous contexts are not kept
-    call s:FilterDuplicates(matches)
     if len(matches) == 1
-        return ((matches[0].kind=='n')?'::':'').matches[0].name
+        let context = omnicpp#tag#Context(matches[0])
+        if !empty(context) | let context .= '::' | endif
+
+        return ((matches[0].kind=='n')?'::':'')
+                    \ .context
+                    \ .matches[0].name
     endif
 
     return ''
 endfunc
 
-" Check that a tag is reachable using a list of included/partial files,
-" and that the full context is already in the tag's name.
+" Check that a tag is reachable based on a list of visible files and
+" imported contexts.
 "
-" @param using Using-instruction object, see s:FromGraph()
-" @param tag Tag object to check
+" @param tag Tag object to verify
+" @param incs List of visible includes
+" @param partial List of partially visible files. Each object has 'file'
+" and 'line' entries, the file being visible up to the specified line
+" @param context the prefix context appearing in the using-instruction's
+" text
+" @param dirs  using-directives preceding the instruction being looked
+" up, with the prefix context appended to each entry
 "
-" @return 1 if the tag is valid, 0 otherwise
+" @return 1 if the tag is visible, 0 otherwise
 "
-func! s:TagMatch(using,tag)
-    if match(a:tag.name, omnicpp#tag#Context(a:tag)) != 0
-        return 0
-    endif
-
+func! s:TagVisible(tag, incs, partial, context, dirs)
     let path = omnicpp#tag#Path(a:tag)
 
-    if index(a:using.complete, path) >= 0 | return 1 | endif
+    let valid = (index(a:incs, path) >= 0)
 
-    for part in a:using.partial
-        if path == part.file
-            return get(a:tag,'line',0) <= part.line
-        endif
-    endfor
-
-    return 0
-endfunc
-
-" When multiple tags match a using-instruction, remove duplicates due to
-" the use of '--extra=+q', keeping only the fully qualified name.
-"
-" @param matches List of matching tags
-" @return None
-"
-func! s:FilterDuplicates(matches)
-    " 2 matches with same context; since we know they end the same, we
-    " have duplicates
-    if len(a:matches) == 2 &&
-                \ omnicpp#tag#using(a:matches[0]) == omnicpp#tag#Context(a:matches[1])
-
-        if match(a:matches[0].name, a:matches[1].name) >= 0
-            " First match has a qualified name
-            call remove(a:matches, 1)
-        else
-            call remove(a:matches, 0)
-        endif
+    if !valid
+        for part in a:partial
+            if path == part.file
+                let valid = (get(a:tag,'line',0) <= part.line)
+                break
+            endif
+        endfor
     endif
+
+    if valid
+        let context = omnicpp#tag#Context(a:tag)
+        let valid = (context == a:context || index(a:dirs, context) >= 0)
+    endif
+
+    return valid
 endfunc
