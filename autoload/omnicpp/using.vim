@@ -10,26 +10,44 @@ let s:reDeclaration = '\C\v<using>\s+\zs\w+(\s*::\s*\w+)+\ze\s*;'
 " keyword distinguish those from declarations when grepping
 let s:reDirective = '\C\v<using>\s+\zs<namespace>\s+\w+(\s*::\s*\w+)*\ze\s*;'
 
-let g:omnicpp#using#reUsing = '^\s*'.s:reDeclaration.'|^\s*'.s:reDirective
+let g:omnicpp#using#reUsing = s:reDeclaration.'|'.s:reDirective
 
 " === Functions ========================================================
 
-" Recursively parse a file for using-instructions, also extracting
-" includes for resolving them, and preserving instructions order.
+" Recursively parse a file for using-instructions, and resolve them.
 " Internally, we build a graph around file dependencies, then extract
-" the data by walking through that graph. Includes appear only the first
-" time, while using-instructions are not filtered.
+" the data by walking through that graph based on the order the
+" instructions appear in; includes are visited only once to avoid
+" circular dependencies, while using-instructions are not filtered.
 "
 " @param filename File to parse
 " @param ... a non-zero numeric argument stops parsing the main file at
 " the specified line
 "
-" @return List of tag items, one for every resolved using-instruction
+" @return List of valid using-instructions; using-directives have a '::'
+" prepended
 "
 func! omnicpp#using#FileRecursive(filename,...)
     let graph = omnicpp#graph#Graph(a:filename)
     call graph.root.addChildren(omnicpp#parse#File(graph.root.text, get(a:000,0,0)))
     return s:FromGraph(graph)
+endfunc
+
+" Recursively parse the current buffer up to the cursor's position for
+" using-instructions, and resolve them.
+" (see using#FileRecursive() for details)
+"
+" TODO when resolving using-instructions, local instructions should take
+" precedence over global ones
+"
+" @return see using#FileRecursive()
+"
+func! omnicpp#using#BufferRecursive()
+   let graph = omnicpp#graph#Graph(expand('%:p'))
+   let global = omnicpp#parse#Global()
+   let local = omnicpp#parse#Local()
+   call graph.root.addChildren(global+local)
+   return s:FromGraph(graph)
 endfunc
 
 " Sanitize an extracted using-instruction. Spaces are removed, and
