@@ -2,6 +2,10 @@ This is a complete rewrite of the original OmniCpp plugin for Vim; it
 aims at providing Omni completion for C/C++ files as would any
 full-fledged IDE.
 
+The issue tracker for this project can be found at:
+http://jabbourb.lighthouseapp.com/projects/61672-omnicpp/overview
+
+
 **Warning:** The plugin is still in early alpha state. Although features
 are implemented by the day, a lot of functionality is still missing.
 
