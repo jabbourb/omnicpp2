@@ -11,7 +11,9 @@
 let s:cache = {}
 
 " The data to grep, ORed.
-let g:omnicpp#parse#reData = '^\s*'.g:omnicpp#include#reInclude.'\|'.g:omnicpp#using#reUsing
+let s:reData = '^\s*\%('.g:omnicpp#include#reInclude.'\|'.g:omnicpp#using#reUsing.'\)'
+" In a buffer, we cannot use '^' since lines are concatenated.
+let s:reDataBuf = g:omnicpp#include#reInclude.'\|'.g:omnicpp#using#reUsing
 
 " === Buffer functions =================================================
 
@@ -29,7 +31,7 @@ let g:omnicpp#parse#reData = '^\s*'.g:omnicpp#include#reInclude.'\|'.g:omnicpp#u
 " @param regex the regex used for finding matches
 " @return list of matches, see parse#Grep()
 "
-function! omnicpp#parse#Local(regex)
+function! omnicpp#parse#ReLocal(regex)
     " Start of local scope
     let localStop = searchpairpos('{', '', '}', 'bnrW', 'omnicpp#buffer#IsCursorInCommentOrString()')
     if localStop != [0,0]
@@ -43,18 +45,36 @@ endfunc
 " the current buffer up to the cursor's position; the strings are
 " extracted by matching between the beginning and end of the regex.
 "
-" (see MatchLocal() for details)
+" (see parse#ReLocal() for details)
 "
 " @param regex the regex used for finding matches
-" @return list of matched strings
+" @return list of matches, see parse#Grep()
 "
-function! omnicpp#parse#Global(regex)
+function! omnicpp#parse#ReGlobal(regex)
     let origPos = getpos('.')
     " Get out of local block, if any
     call searchpair('{', '', '}', 'brW', 'omnicpp#buffer#IsCursorInCommentOrString()')
     let sanitized = s:SanitizeJump([1,0])
     call setpos('.', origPos)
     return sanitized.match(a:regex)
+endfunc
+
+" Look up using-instructions and includes in the local scope up to the
+" cursor's position, then resolve includes and sanitize instructions.
+"
+" @return list of matches, see parse#Grep
+"
+func! omnicpp#parse#Local()
+    return s:ParsePost(omnicpp#parse#ReLocal(s:reDataBuf),expand('%:p:h'))
+endfunc
+
+" Look up using-instructions and includes in the global scope up to the
+" cursor's position, then resolve includes and sanitize instructions.
+"
+" @return list of matches, see parse#Grep
+"
+func! omnicpp#parse#Global()
+    return s:ParsePost(omnicpp#parse#ReGlobal(s:reDataBuf),expand('%:p:h'))
 endfunc
 
 " === File functions ===================================================
@@ -100,7 +120,7 @@ func! omnicpp#parse#File(filename,...)
     if s:CacheHas(a:filename) && !(a:0 && a:1)
         return s:cache[a:filename].matches
     else
-        let matches = omnicpp#parse#Grep(a:filename, g:omnicpp#parse#reData, get(a:000,0,0))
+        let matches = omnicpp#parse#Grep(a:filename, s:reData, get(a:000,0,0))
         call s:ParsePost(matches, omnicpp#utils#ParentDir(a:filename))
         if !(a:0 && a:1)
             let s:cache[a:filename] = {'ftime' : getftime(a:filename), 'matches' : matches}
@@ -159,5 +179,5 @@ func! s:ParsePost(matches,pwd)
                     \ ? omnicpp#include#Resolve(item.text,a:pwd)
                     \ : omnicpp#using#Sanitize(item.text)
     endfor
-    call filter(a:matches, '!empty(v:val.text)')
+    return filter(a:matches, '!empty(v:val.text)')
 endfunc
