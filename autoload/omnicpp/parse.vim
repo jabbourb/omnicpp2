@@ -27,14 +27,13 @@ let g:omnicpp#parse#reData = '^\s*'.g:omnicpp#include#reInclude.'\|'.g:omnicpp#u
 " and the like inside a regexp.
 "
 " @param regex the regex used for finding matches
-" @return list of matched strings
+" @return list of matches, see parse#Grep()
 "
 function! omnicpp#parse#Local(regex)
     " Start of local scope
-    let localStop = searchpairpos('{', '', '}', 'bnrW', 'omnicpp#utils#IsCursorInCommentOrString()')
+    let localStop = searchpairpos('{', '', '}', 'bnrW', 'omnicpp#buffer#IsCursorInCommentOrString()')
     if localStop != [0,0]
-        let sanitized = s:SanitizeJump(localStop)
-        return s:SequentialMatch(sanitized, a:regex)
+        return s:SanitizeJump(localStop).match(a:regex)
     endif
     " If we are in global scope, do nothing
     return []
@@ -52,10 +51,10 @@ endfunc
 function! omnicpp#parse#Global(regex)
     let origPos = getpos('.')
     " Get out of local block, if any
-    call searchpair('{', '', '}', 'brW', 'omnicpp#utils#IsCursorInCommentOrString()')
+    call searchpair('{', '', '}', 'brW', 'omnicpp#buffer#IsCursorInCommentOrString()')
     let sanitized = s:SanitizeJump([1,0])
     call setpos('.', origPos)
-    return s:SequentialMatch(sanitized, a:regex)
+    return sanitized.match(a:regex)
 endfunc
 
 " === File functions ===================================================
@@ -117,11 +116,11 @@ endfunc
 "
 " @param stopPos the upper limit for the text to extract, exclusive (the
 " lower being the current cursor position)
-" @return a string built by concatenating useful lines
+" @return a NumberedLines object (see buffer#NumberedLines)
 "
 func! s:SanitizeJump(stopPos)
     let origPos = getpos('.')
-    let sanitized = ''
+    let sanitized = []
     let lastPos = origPos[1:2]
 
     while search('}', 'bW', a:stopPos[0])
@@ -133,38 +132,18 @@ func! s:SanitizeJump(stopPos)
         endif
 
         " Jump over comments and strings
-        if omnicpp#utils#IsCursorInCommentOrString() | continue | endif
+        if omnicpp#buffer#IsCursorInCommentOrString() | continue | endif
 
-        let sanitized = omnicpp#utils#ExtractCode(getpos('.')[1:2], lastPos, 1).' '.sanitized
+        call extend(sanitized, omnicpp#buffer#ExtractCode(getpos('.')[1:2], lastPos, 1), 0)
         " Jump over sub-blocks
-        if searchpair('{', '', '}', 'bW', 'omnicpp#utils#IsCursorInCommentOrString()')
+        if searchpair('{', '', '}', 'bW', 'omnicpp#buffer#IsCursorInCommentOrString()')
             let lastPos = getpos('.')[1:2]
         endif
     endwhile
 
     call setpos('.', origPos)
     " We still need to add the text up to the beginning
-    return omnicpp#utils#ExtractCode(a:stopPos, lastPos, 1).' '.sanitized
-endfunc
-
-" Match a string against a given regexp sequentially, every search
-" starting where the previous match ended.
-"
-" @return list of matches
-"
-func! s:SequentialMatch(string, regex)
-    let matches = []
-    " Head pointer
-    let head = 0
-    while 1
-        let matchStart = match(a:string, a:regex, head)
-        if matchStart == -1 | break | endif
-        let matchEnd = matchend(a:string, a:regex, head)
-
-        call add(matches, strpart(a:string, matchStart, matchEnd-matchStart))
-        let head = matchEnd
-    endwhile
-    return matches
+    return omnicpp#buffer#NumberedLines(omnicpp#buffer#ExtractCode(a:stopPos, lastPos, 1) + sanitized)
 endfunc
 
 " Check if an entry exists in the cache and is up-to-date

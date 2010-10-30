@@ -11,15 +11,7 @@
 " @param ... by default, the range is inclusive; a non-null optional
 " argument makes it exclusive
 "
-" @return An object representing the extracted text which, when searched
-" for a regexp, will return the results in a format similar to
-" parse#Grep()
-" - text : the extracted text, sanitized and concatenated into a single
-"   string
-" - boundaries : List of 2-elements lists, each mapping a line number to
-"   an index in the 'text' string
-" - line() : see buffer#NLLine()
-" - match() : see buffer#NLMatch()
+" @return List of line objects, each being a pair [text, line]
 "
 func! omnicpp#buffer#ExtractCode(startPos, endPos, ...)
     if a:0 && a:1
@@ -47,7 +39,7 @@ func! omnicpp#buffer#ExtractCode(startPos, endPos, ...)
         call add(lnum, [lines[idx], a:startPos[0]+idx])
     endfor
 
-    return s:NumberedLines(s:CommentsAndStrings(s:JoinBackslash(lnum)))
+    return s:CommentsAndStrings(s:JoinBackslash(lnum))
 endfunc
 
 " Extract the current instruction up to the cursor's position
@@ -155,9 +147,16 @@ endfunc
 "
 " @param lnum List of numbered lines, each item being a 2-elements list
 " [text, line]
-" @return see buffer#ExtractCode()
+" @return An object representing the extracted text which, when searched
+" for a regexp, will return the results in a format similar to
+" parse#Grep()
+" - text : the input text concatenated into a single string
+" - boundaries : List of 2-elements lists, each mapping a line number to
+"   an index in the 'text' string
+" - line() : see buffer#NLLine()
+" - match() : see buffer#NLMatch()
 "
-func! s:NumberedLines(lnum)
+func! omnicpp#buffer#NumberedLines(lnum)
     let text = ''
     let boundaries = []
 
